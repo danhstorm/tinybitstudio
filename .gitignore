@@ -1,0 +1,4 @@
+node_modules/
+uploads/
+hitmaker.db
+.DS_Store

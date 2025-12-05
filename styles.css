@@ -40,7 +40,7 @@ body {
 
 #viewport {
   width: 1180px;
-  height: 780px;
+  height: 820px;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -63,45 +63,65 @@ body {
   padding: 0.5rem 0.75rem 0.75rem;
   position: relative;
   overflow: hidden;
+  /* CRT Bulge & Fisheye Effect */
+  /* border-radius removed as requested */
+  /* Vignette */
+  background: radial-gradient(circle at center, #000 60%, #111 100%);
+  /* Apply SVG Filter */
+  filter: url(#fisheye);
+  /* Optimize rendering */
+  will-change: transform;
 }
 
-#frame-top, #frame-bottom {
-  display: none;
+/* Global CRT Overlay */
+#console::before {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  /* Static fine scanlines - Horizontal only */
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+  background-size: 100% 2px; /* Thinner scanlines (was 4px) */
+  z-index: 999;
+  pointer-events: none;
+  box-shadow: inset 0 0 100px rgba(0,0,0,0.9); /* Strong vignette */
 }
 
-#console::before,
+/* Moving Scanlines & Gradients */
 #console::after {
   content: "";
   position: absolute;
-  inset: 0;
+  top: 0; left: 0; right: 0; bottom: 0;
+  /* 
+     1. Rolling bar (Wider, Light & Dark)
+     2. Moving scanlines (Interference)
+  */
+  background: 
+    linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.4) 30%, rgba(255,255,255,0.1) 50%, rgba(0,0,0,0.4) 70%, transparent 100%),
+    repeating-linear-gradient(180deg, transparent 0, transparent 2px, rgba(255,255,255,0.02) 3px, rgba(0,0,0,0.2) 4px);
+  
+  background-size: 100% 200%, 100% 100%; /* Rolling bar is 200% height */
+  background-repeat: no-repeat, repeat;
+  animation: scanline-move 30s linear infinite; /* Much slower (was 10s) */
+  will-change: background-position;
   pointer-events: none;
+  z-index: 1000;
 }
 
-#console::before {
-  background-image: repeating-linear-gradient(
-    0deg,
-    rgba(255, 255, 255, 0.04) 0,
-    rgba(255, 255, 255, 0.04) 2px,
-    transparent 2px,
-    transparent 4px
-  );
-  mix-blend-mode: screen;
-  opacity: 0.25;
-}
-
-#console::after {
-  background: linear-gradient(transparent 0, rgba(0, 0, 0, 0.3) 40%, transparent 60%);
-  animation: scan 6s linear infinite;
-}
-
-@keyframes scan {
-  0% {
-    transform: translateY(-100%);
+@keyframes scanline-move {
+  0% { 
+    background-position: 0% -200%, 0% 0%; 
   }
-  100% {
-    transform: translateY(100%);
+  100% { 
+    background-position: 0% 300%, 0% 100%; 
   }
 }
+
+/* Optional: SVG Filter for true distortion if needed, but starting with CSS-only curvature illusion */
+
 
 .frame-line {
   margin: 0;
@@ -202,11 +222,14 @@ pre, code, kbd, samp {
 
 #visualizer-shell {
   margin-top: 0.25rem;
+  margin-bottom: 1rem;
   padding: 0.35rem;
   align-self: stretch;
   display: flex;
   justify-content: center;
   box-shadow: none !important;
+  position: relative;
+  overflow: hidden;
 }
 
 #visualizer-body {
@@ -224,8 +247,12 @@ pre, code, kbd, samp {
   margin-right: auto;
   border: 2px solid #fff;
   padding: 0.25rem;
-  /* box-shadow removed as requested */
+  position: relative;
 }
+
+/* Removed local glitch effects */
+
+
 
 .viz-row {
   height: 0.85rem; /* Match line-height */
@@ -607,12 +634,18 @@ button:focus-visible {
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  border: 2px solid #fff;
+  border: 2px solid #444; /* Default inactive color */
   position: relative;
   font-size: 1rem;
   text-align: center;
   line-height: 1.2rem;
   --knob-angle: -135deg;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.knob button.active {
+  border-color: var(--c64-cyan); /* Light blue when active */
+  color: var(--c64-cyan);
 }
 
 .knob button::before {
@@ -622,11 +655,16 @@ button:focus-visible {
   height: 18px;
   top: 10px;
   left: 50%;
-  background: var(--c64-orange);
+  background: var(--c64-purple); /* Purple indicator */
   transform-origin: bottom center;
   transform: translateX(-50%) rotate(var(--knob-angle));
   pointer-events: none;
-  z-index: 1;
+  z-index: 1; /* Behind value */
+  transition: background-color 0.2s;
+}
+
+.knob button.active::before {
+  background: var(--c64-purple); /* Keep purple even when active */
 }
 
 .knob button::after {
@@ -634,20 +672,35 @@ button:focus-visible {
   position: absolute;
   inset: 8px;
   border-radius: 50%;
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
   pointer-events: none;
 }
 
 .knob-label {
   font-size: 0.75rem;
   letter-spacing: 0.1em;
+  color: #444; /* Default inactive color */
+  transition: color 0.2s;
+}
+
+.knob.active .knob-label {
+  color: var(--c64-cyan); /* Light blue when active */
 }
 
 .knob-value {
   display: block;
   font-weight: bold;
   margin-top: 18px;
-  color: #fff;
+  color: inherit; /* Inherit from button */
+  position: relative;
+  z-index: 2; /* Above indicator */
+}
+
+/* Dimmed state for the entire controls section */
+#synth-controls.dimmed {
+  opacity: 0.3;
+  pointer-events: none; /* Optional: disable interaction when dimmed */
+  filter: grayscale(100%);
 }
 
 .menu-entry {
@@ -880,5 +933,15 @@ button:focus-visible {
 .viz-color-4 { color: var(--c64-orange); }
 .viz-color-5 { color: #fff; }
 .viz-color-6 { color: #ff6ef0; } /* Pink/Purple */
+
+.wave-symbol {
+  display: inline-block;
+  width: 1.5ch;
+  text-align: center;
+  font-weight: 900; /* Fatter */
+  font-family: monospace, "C64Pro"; /* Monospaced */
+  font-size: 1.2em;
+  line-height: 1;
+}
 
 

@@ -57,9 +57,9 @@ export const KEYBOARD_NOTE_MAP = {
   p: { semitone: 3, octave: 1 }
 };
 export const WAVE_TYPES = [
-  { id: "sawtooth", label: "▼" },
-  { id: "square", label: "▀" },
-  { id: "sine", label: "~" }
+  { id: "sawtooth", label: "╱" },
+  { id: "square", label: "⊓" },
+  { id: "sine", label: "∿" }
 ];
 export const arpChords = [
   { id: "maj", label: "M", code: "M", intervals: [0, 4, 7] },

@@ -11,8 +11,18 @@
   </head>
   <body>
     <div id="viewport">
+      <!-- SVG Filter for Fisheye Distortion -->
+      <svg style="position: absolute; width: 0; height: 0; overflow: hidden;" version="1.1" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="fisheye">
+            <!-- Use a lower resolution texture for the displacement map to improve performance -->
+            <feImage xlink:href="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 512 512' preserveAspectRatio='none'%3E%3CradialGradient id='g' cx='50%25' cy='50%25' r='65%25' fx='50%25' fy='50%25'%3E%3Cstop offset='0%25' stop-color='%23808080'/%3E%3Cstop offset='100%25' stop-color='%23000000'/%3E%3C/radialGradient%3E%3Crect x='0' y='0' width='512' height='512' fill='url(%23g)' /%3E%3C/svg%3E" result="map" />
+            <feDisplacementMap in="SourceGraphic" in2="map" scale="4" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+      </svg>
       <div id="console" role="application" aria-label="Retro tracker workstation">
-        <pre id="frame-top" class="frame-line"></pre>
+        <!-- <pre id="frame-top" class="frame-line"></pre> -->
         <div id="workspace">
           <section id="drum-panel" class="ascii-panel" aria-label="Drum workstation">
             <div class="panel-body single-frame" id="drum-body"></div>
@@ -49,7 +59,7 @@
             </div>
           </section>
         </div>
-        <pre id="frame-bottom" class="frame-line"></pre>
+        <!-- <pre id="frame-bottom" class="frame-line"></pre> -->
       </div>
     </div>
   </body>

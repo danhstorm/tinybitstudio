@@ -189,9 +189,10 @@ function cacheElements() {
 }
 
 function buildFrameLines() {
-  const line = "+" + "=".repeat(FRAME_WIDTH) + "+";
-  document.getElementById("frame-top").textContent = line;
-  document.getElementById("frame-bottom").textContent = line;
+  // Removed as requested
+  // const line = "+" + "=".repeat(FRAME_WIDTH) + "+";
+  // document.getElementById("frame-top").textContent = line;
+  // document.getElementById("frame-bottom").textContent = line;
 }
 
 function buildPanelBorders() {
@@ -596,7 +597,8 @@ function renderSynthStack() {
         btn.style.color = "var(--c64-purple)";
         
         const waveColor = isSelected ? "var(--c64-green)" : "var(--c64-purple)";
-        btn.innerHTML = `[<span style="color: ${waveColor}">${w.label}</span>]`;
+        // Removed brackets and added fixed width for monospace alignment
+        btn.innerHTML = `<span class="wave-symbol" style="color: ${waveColor};">${w.label}</span>`;
 
         btn.addEventListener("click", () => {
             if (!state.pattern.channelSettings[track.key]) state.pattern.channelSettings[track.key] = {};
@@ -616,7 +618,8 @@ function renderSynthStack() {
                 const waveId = WAVE_TYPES[idx].id;
                 const isNowSelected = waveId === w.id;
                 const color = isNowSelected ? "var(--c64-green)" : "var(--c64-purple)";
-                b.innerHTML = `[<span style="color: ${color}">${WAVE_TYPES[idx].label}</span>]`;
+                // Removed brackets and added fixed width for monospace alignment
+                b.innerHTML = `<span class="wave-symbol" style="color: ${color};">${WAVE_TYPES[idx].label}</span>`;
             });
         });
         waveGroup.append(btn);
@@ -829,7 +832,7 @@ function renderSynthControls() {
   
   const header = document.createElement("div");
   header.className = "synth-header";
-  header.textContent = "EXPERT KNOB TWIDDLER";
+  header.textContent = "EXPERT KNOB TWIDDLING";
   controls.append(header);
 
   const knobRow = document.createElement("div");
@@ -1592,8 +1595,9 @@ function clampPatternToScale() {
 
 function initVisualizerBody() {
   if (!refs.visualizerBody) return;
-  refs.visualizerBody.textContent = buildEmptyVisualizer(state.visualizerMode === 1);
-  refs.visualizerBody.className = state.visualizerMode === 1 ? "viz-mode-1" : "viz-mode-other";
+  // Mode 2 is Oscilloscope (needs line), others don't
+  refs.visualizerBody.textContent = buildEmptyVisualizer(state.visualizerMode === 2);
+  // Class will be updated by updateVisualizer loop
 }
 
 function buildEmptyVisualizer(showLine = true) {
@@ -1702,20 +1706,55 @@ function updateVisualizer() {
   
   // Pass extra metrics to renderers
   const metrics = { rms, zcr, isSilent };
+
+  // Update Visualizer Color based on Mode
+  // Mode 1 (Bars) -> Purple
+  // Mode 2 (Oscilloscope) -> Green
+  // Others -> Default or keep existing logic
+  refs.visualizerBody.classList.remove("viz-color-1", "viz-color-2", "viz-color-3", "viz-color-4", "viz-color-5", "viz-color-6");
   
-  if (isSilent && state.visualizerMode !== 6 && state.visualizerMode !== 3) {
-      // Only show line for Mode 1
-      body = buildEmptyVisualizer(state.visualizerMode === 1);
+  if (state.visualizerMode === 1) {
+      refs.visualizerBody.classList.add("viz-color-3"); // Purple
+  } else if (state.visualizerMode === 2) {
+      refs.visualizerBody.classList.add("viz-color-2"); // Green
+  } else {
+      // Default colors for other modes if needed, or just inherit
+      // Mode 3 is Cyan (viz-color-1) usually? Let's leave it to CSS default or set explicitly if needed.
+      // The CSS sets #visualizer-body color to var(--c64-purple) by default.
+      // Let's enforce the button colors for consistency if desired, but user only specified 1 and 2.
+      if (state.visualizerMode === 3) refs.visualizerBody.classList.add("viz-color-1"); // Cyan
+      if (state.visualizerMode === 4) refs.visualizerBody.classList.add("viz-color-4"); // Orange
+      if (state.visualizerMode === 5) refs.visualizerBody.classList.add("viz-color-2"); // Green (or maybe white?)
+      if (state.visualizerMode === 6) refs.visualizerBody.classList.add("viz-color-3"); // Purple
+  }
+  
+  if (isSilent) {
+      // Special handling for silence
+      if (state.visualizerMode === 2) {
+          // Mode 2 (Oscilloscope) gets the flat line
+          body = buildEmptyVisualizer(true);
+      } else if (state.visualizerMode === 3 || state.visualizerMode === 6) {
+          // Mode 3 and 6 have their own silence/decay logic, so we let them render
+          try {
+              if (state.visualizerMode === 3) body = renderVizMode3(data, width, height, metrics);
+              else body = renderVizMode6(data, width, height, metrics);
+          } catch (err) {
+              body = buildEmptyVisualizer(false);
+          }
+      } else {
+          // All other modes (1, 4, 5) get empty space on silence
+          body = buildEmptyVisualizer(false);
+      }
   } else {
       try {
           switch (state.visualizerMode) {
-              case 1: body = renderVizMode1(data, width, height); break;
-              case 2: body = renderVizMode2(data, width, height); break;
+              case 1: body = renderVizMode2(data, width, height); break; // Swapped: Mode 1 is now Bars
+              case 2: body = renderVizMode1(data, width, height); break; // Swapped: Mode 2 is now Oscilloscope
               case 3: body = renderVizMode3(data, width, height, metrics); break;
               case 4: body = renderVizMode4(data, width, height, metrics); break;
               case 5: body = renderVizMode5(data, width, height); break;
               case 6: body = renderVizMode6(data, width, height, metrics); break;
-              default: body = renderVizMode1(data, width, height); break;
+              default: body = renderVizMode2(data, width, height); break;
           }
       } catch (err) {
           console.warn("Render error in mode", state.visualizerMode, err);
@@ -1774,8 +1813,9 @@ function renderVizMode2(data, width, height) {
 function renderVizMode3(data, width, height, metrics) {
     // "Center Burst"
     const lines = Array.from({ length: height }, () => Array(width).fill(" "));
-    const cx = Math.floor(width / 2);
-    const cy = Math.floor(height / 2);
+    // Use floating point center for perfect symmetry on even widths
+    const cx = (width - 1) / 2;
+    const cy = (height - 1) / 2;
     
     // Use RMS for radius
     const radius = Math.floor(metrics.rms * Math.min(width, height) * 1.5);
@@ -1803,8 +1843,12 @@ function renderVizMode3(data, width, height, metrics) {
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-            const dx = x - cx;
-            const dy = (y - cy) * 2; // Aspect ratio correction
+            // Adjust aspect ratio for text (characters are usually taller than wide)
+            // Standard terminal char is ~1:2 aspect ratio.
+            // So dx should be scaled or dy scaled.
+            // Let's try to make it circular.
+            const dx = (x - cx);
+            const dy = (y - cy) * 2.0; // Correct for line height vs char width
             const dist = Math.sqrt(dx*dx + dy*dy);
             
             // Main ball
@@ -1818,7 +1862,7 @@ function renderVizMode3(data, width, height, metrics) {
             
             // Render bursts
             renderVizMode3.bursts.forEach(b => {
-                if (Math.abs(dist - b.r) < 1.5) {
+                if (Math.abs(dist - b.r * 2) < 2) { // Scale burst radius too
                      if (y >= 0 && y < height && x >= 0 && x < width) lines[y][x] = "░";
                 }
             });
@@ -1913,20 +1957,27 @@ function renderVizMode4(data, width, height, metrics) {
 }
 
 function renderVizMode5(data, width, height) {
-    // "Symmetry"
+    // "Symmetry" - Solid Blocky Version
     const lines = Array.from({ length: height }, () => Array(width).fill(" "));
     const mid = Math.floor(width / 2);
+    const cy = Math.floor(height / 2);
     
     for (let x = 0; x < mid; x++) {
         const idx = Math.floor((x / mid) * data.length);
-        const val = data[idx];
-        const y = Math.floor(((val + 1) / 2) * (height - 1));
-        const row = height - 1 - y;
+        const val = Math.abs(data[idx]); // Use absolute value for size
         
-        if (row >= 0 && row < height) {
-            const char = "▓";
-            if (mid + x < width) lines[row][mid + x] = char;
-            if (mid - x >= 0) lines[row][mid - x] = char; // Mirror
+        // Calculate height of the block based on amplitude
+        const blockHeight = Math.floor(val * height * 0.8); 
+        
+        if (blockHeight > 0) {
+            const startY = Math.max(0, cy - Math.floor(blockHeight / 2));
+            const endY = Math.min(height - 1, cy + Math.ceil(blockHeight / 2));
+            
+            for (let y = startY; y <= endY; y++) {
+                const char = "█";
+                if (mid + x < width) lines[y][mid + x] = char;
+                if (mid - 1 - x >= 0) lines[y][mid - 1 - x] = char; // Mirror
+            }
         }
     }
     return lines.map(l => l.join("")).join("\n");
@@ -3150,6 +3201,33 @@ function updateKnobDisplays() {
   const step = getFocusedStep();
   const channel = state.focusedStep?.channel;
   const hasNote = step && (step.velocity > 0 || step.level > 0);
+  
+  // Check if we are in a synth track (not drums)
+  const isSynthTrack = channel && channel !== "drums";
+  const controls = document.getElementById("synth-controls");
+  
+  if (controls) {
+      if (isSynthTrack) {
+          controls.classList.remove("dimmed");
+      } else {
+          controls.classList.add("dimmed");
+      }
+  }
+
+  // Helper to update active state
+  const updateActiveState = (type, isActive) => {
+      const btn = refs.knobs[type];
+      const wrap = btn?.parentElement;
+      if (btn) {
+          if (isActive && isSynthTrack) {
+              btn.classList.add("active");
+              wrap?.classList.add("active");
+          } else {
+              btn.classList.remove("active");
+              wrap?.classList.remove("active");
+          }
+      }
+  };
 
   if (refs.knobValues.note) {
     if (hasNote) {
@@ -3159,6 +3237,7 @@ function updateKnobDisplays() {
     } else {
       refs.knobValues.note.textContent = "";
     }
+    updateActiveState("note", true);
   }
   if (refs.knobValues.octave) {
     if (hasNote) {
@@ -3167,6 +3246,7 @@ function updateKnobDisplays() {
     } else {
       refs.knobValues.octave.textContent = "";
     }
+    updateActiveState("octave", true);
   }
   if (refs.knobValues.volume) {
     if (hasNote) {
@@ -3174,6 +3254,7 @@ function updateKnobDisplays() {
     } else {
       refs.knobValues.volume.textContent = "";
     }
+    updateActiveState("volume", true);
   }
   if (refs.knobValues.mod) {
     if (hasNote) {
@@ -3181,6 +3262,7 @@ function updateKnobDisplays() {
     } else {
       refs.knobValues.mod.textContent = "";
     }
+    updateActiveState("mod", true);
   }
   updateKnobAngles();
 }
@@ -3195,14 +3277,9 @@ function updateKnobAngles() {
 function setKnobAngleValue(type, ratio) {
   const btn = refs.knobs[type];
   if (!btn) return;
-  // If ratio is null (empty knob), hide the indicator or set to default
-  if (ratio === null) {
-      btn.style.setProperty("--knob-angle", `-135deg`); // Reset or hide
-      // Maybe add a class to hide the indicator?
-      // For now just reset
-      return;
-  }
-  const safeRatio = Number.isFinite(ratio) ? clamp(ratio, 0, 1) : 0;
+  // If ratio is null (empty knob), set to default (min) instead of hiding
+  // This keeps the knob "available" visually
+  const safeRatio = (ratio !== null && Number.isFinite(ratio)) ? clamp(ratio, 0, 1) : 0;
   const angle = -135 + safeRatio * 270;
   btn.style.setProperty("--knob-angle", `${angle}deg`);
 }
@@ -3490,8 +3567,16 @@ async function handleExportMp3() {
         });
 
         if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error || "Upload failed");
+            // Try to read as text first to avoid JSON parse error on empty/html response
+            const text = await response.text();
+            let errMessage = "Upload failed";
+            try {
+                const json = JSON.parse(text);
+                errMessage = json.error || errMessage;
+            } catch (e) {
+                errMessage = `Server Error (${response.status}): ${text.substring(0, 100)}`;
+            }
+            throw new Error(errMessage);
         }
 
         const result = await response.json();

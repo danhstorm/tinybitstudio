@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "append_css",
+			"type": "shell",
+			"command": "sh",
+			"args": [
+				"echo",
+				".wave-symbol { display: inline-block; width: 1.5ch; text-align: center; font-weight: 900; font-family: monospace, \"C64Pro\"; font-size: 1.1em; line-height: 1; } >> /Users/danhenrikssonstorm/Library/CloudStorage/Dropbox-Personal/_2025/hitmaker/styles.css"
+			],
+			"isBackground": false,
+			"group": "build"
+		}
+	]
+}
