@@ -36,7 +36,7 @@ export const MAX_NOTE_INDEX = NOTE_NAMES.length * NOTE_RANGE_OCTAVES - 1;
 export const DEFAULT_NOTE_INDEX = 36;
 export const DEFAULT_STEP_VELOCITY = 8;
 export const KNOB_DRAG_STEP_PX = 6;
-export const VISUALIZER_WIDTH = 30;
+export const VISUALIZER_WIDTH = 34;
 export const VISUALIZER_HEIGHT = 24;
 export const KEYBOARD_NOTE_MAP = {
   a: { semitone: 0, octave: 0 },

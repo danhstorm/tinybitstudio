@@ -17,12 +17,120 @@ import {
 } from "./utils.js";
 
 import { state, audio, refs, focusGrid } from "./state.js";
-import { saveSceneData, loadSceneData } from "./storage.js";
+import { db } from "./db.js";
 import { 
   buildDefaultPatternSet, createPatternForTrack, createLinearSynthPattern, 
   createArpPattern, createInitialDrumPattern, createEmptyDrumPattern, 
   clonePattern, isArpChannel
 } from "./patterns.js";
+
+import { loadSceneData } from "./storage.js";
+
+// SUPABASE CONFIG (Removed for local server)
+// const SUPABASE_URL = "YOUR_SUPABASE_URL";
+// const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY";
+// --- History System ---
+const history = {
+  past: [],
+  future: [],
+  max: 50
+};
+
+function pushToHistory() {
+  // Snapshot current state
+  const snapshot = {
+    patterns: JSON.parse(JSON.stringify(state.patterns)),
+    patternEnable: [...state.patternEnable],
+    tempo: state.tempo,
+    swing: state.swing,
+    trackName: state.trackName,
+    currentUser: state.currentUser,
+    editingPatternIdx: state.editingPatternIdx,
+    channelSettings: JSON.parse(JSON.stringify(state.pattern.channelSettings || {})) // Ensure deep copy of settings
+  };
+  
+  history.past.push(snapshot);
+  if (history.past.length > history.max) {
+    history.past.shift();
+  }
+  history.future = []; // Clear redo stack on new action
+}
+
+function undo() {
+  if (history.past.length === 0) return;
+  
+  // Snapshot current state to future
+  const currentSnapshot = {
+    patterns: JSON.parse(JSON.stringify(state.patterns)),
+    patternEnable: [...state.patternEnable],
+    tempo: state.tempo,
+    swing: state.swing,
+    trackName: state.trackName,
+    currentUser: state.currentUser,
+    editingPatternIdx: state.editingPatternIdx,
+    channelSettings: JSON.parse(JSON.stringify(state.pattern.channelSettings || {}))
+  };
+  history.future.push(currentSnapshot);
+  
+  const previous = history.past.pop();
+  restoreState(previous);
+}
+
+function redo() {
+  if (history.future.length === 0) return;
+  
+  // Snapshot current state to past
+  const currentSnapshot = {
+    patterns: JSON.parse(JSON.stringify(state.patterns)),
+    patternEnable: [...state.patternEnable],
+    tempo: state.tempo,
+    swing: state.swing,
+    trackName: state.trackName,
+    currentUser: state.currentUser,
+    editingPatternIdx: state.editingPatternIdx,
+    channelSettings: JSON.parse(JSON.stringify(state.pattern.channelSettings || {}))
+  };
+  history.past.push(currentSnapshot);
+  
+  const next = history.future.pop();
+  restoreState(next);
+}
+
+function restoreState(snapshot) {
+  state.patterns = snapshot.patterns;
+  state.patternEnable = snapshot.patternEnable;
+  state.tempo = snapshot.tempo;
+  state.swing = snapshot.swing;
+  state.trackName = snapshot.trackName;
+  state.currentUser = snapshot.currentUser;
+  state.editingPatternIdx = snapshot.editingPatternIdx;
+  
+  // Update reference to current pattern
+  state.pattern = state.patterns[state.editingPatternIdx];
+  
+  // Restore channel settings if needed (though they are inside patterns)
+  // But we might have modified them in place?
+  // state.patterns contains the settings.
+  
+  // Update Audio Engine
+  Tone.Transport.bpm.value = state.tempo;
+  Tone.Transport.swing = state.swing / 100;
+  applyWaveformToVoices(state.pattern.channelSettings);
+  
+  // Update UI
+  renderTransport();
+  renderDrumBox();
+  renderSynthStack();
+  
+  // Update Pattern Controls (Grid at bottom)
+  const oldControls = document.getElementById("pattern-controls");
+  if (oldControls) {
+      const newControls = renderPatternControls();
+      oldControls.replaceWith(newControls);
+  }
+  
+  notifyStateChange();
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   try {
@@ -112,47 +220,64 @@ function renderTransport() {
     titleRow.style.gap = "0.25rem";
     titleRow.style.marginBottom = "0.5rem";
 
-    // Artist Name
-    const artistRow = document.createElement("div");
-    artistRow.style.color = "var(--c64-orange)";
-    artistRow.style.fontSize = "0.8rem";
-    artistRow.textContent = `ARTIST: ${state.currentUser || "UNKNOWN"}`;
-    titleRow.append(artistRow);
+    // Helper to create labeled input row
+    const createInputRow = (label, value, onChange) => {
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.alignItems = "center";
+        row.style.gap = "0.5ch";
+        row.style.fontSize = "0.8rem";
+        
+        const labelSpan = document.createElement("span");
+        // Use pre-wrap to preserve spaces for alignment
+        labelSpan.style.whiteSpace = "pre";
+        labelSpan.textContent = label;
+        labelSpan.style.color = "var(--c64-cyan)"; 
+        
+        const bracketLeft = document.createElement("span");
+        bracketLeft.textContent = "[";
+        bracketLeft.style.color = "var(--c64-cyan)";
+        
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = value;
+        input.maxLength = 24;
+        input.className = "bare-input";
+        input.style.width = "16ch";
+        input.style.textAlign = "center";
+        input.style.color = "var(--c64-orange)"; 
+        input.addEventListener("input", (e) => {
+            onChange(e.target.value.toUpperCase());
+        });
+        
+        const bracketRight = document.createElement("span");
+        bracketRight.textContent = "]";
+        bracketRight.style.color = "var(--c64-cyan)";
+        
+        row.append(labelSpan, bracketLeft, input, bracketRight);
+        return row;
+    };
 
-    // Song Name Input Wrapper
-    const nameWrapper = document.createElement("div");
-    nameWrapper.style.display = "flex";
-    nameWrapper.style.alignItems = "center";
-    nameWrapper.style.gap = "0.5ch";
-  
-    const bracketLeft = document.createElement("span");
-    bracketLeft.textContent = "[";
-  
-    const nameInput = document.createElement("input");
-    nameInput.type = "text";
-    nameInput.id = "track-name-input";
-    nameInput.value = state.trackName;
-    nameInput.maxLength = 24;
-    nameInput.className = "bare-input";
-    // Adjust width to fit content roughly, or fixed width
-    nameInput.style.width = "16ch"; 
-    nameInput.style.textAlign = "center";
-    nameInput.addEventListener("input", (event) => {
-      state.trackName = event.target.value.toUpperCase();
+    // Artist Input
+    const artistRow = createInputRow("ARTIST:", state.currentUser || "UNKNOWN", (val) => {
+        state.currentUser = val;
     });
-  
-    const bracketRight = document.createElement("span");
-    bracketRight.textContent = "]";
-  
-    nameWrapper.append(bracketLeft, nameInput, bracketRight);
-    titleRow.append(nameWrapper);
+    
+    // Song Input (Aligned)
+    const songRow = createInputRow("SONG:  ", state.trackName, (val) => {
+        state.trackName = val;
+    });
+
+    titleRow.append(artistRow, songRow);
 
     // Row 2: Save/Load/Help/Reset
     const fileRow = document.createElement("div");
     fileRow.className = "control-row";
+    fileRow.style.flexWrap = "wrap"; // Allow wrapping for export button
     const saveBtn = createButton("[SAVE]", "transport-btn", () => handleSave());
     const loadBtn = createButton("[LOAD]", "transport-btn", () => openSlotOverlay());
     const helpBtn = createButton("[HELP]", "transport-btn", () => toggleHelp());
+    
     const resetBtn = createButton("[CLEAR]", "transport-btn", (e) => {
       const btn = e.target;
       if (btn.textContent === "[SURE?]") {
@@ -166,7 +291,11 @@ function renderTransport() {
           }, 3000);
       }
     });
-    fileRow.append(saveBtn, loadBtn, helpBtn, resetBtn);
+    
+    const exportBtn = createButton("[EXPORT AS MP3]", "transport-btn", () => handleExportMp3());
+    exportBtn.style.color = "var(--c64-green)"; // Highlight it
+    
+    fileRow.append(saveBtn, loadBtn, helpBtn, resetBtn, exportBtn);
 
     // Row 3: Transport Controls
     const transportRow = document.createElement("div");
@@ -188,7 +317,9 @@ function renderTransport() {
     tempoVal.textContent = ` [${state.tempo}] `;
   
     const decTempo = createButton("[-]", "transport-btn", () => adjustTempo(-5));
+    decTempo.style.color = "var(--c64-purple)";
     const incTempo = createButton("[+]", "transport-btn", () => adjustTempo(5));
+    incTempo.style.color = "var(--c64-purple)";
   
     tempoRow.append(decTempo, tempoVal, incTempo);
 
@@ -204,9 +335,12 @@ function renderTransport() {
     const decSwing = createButton("[-]", "transport-btn", () => {
       adjustSwing(-5);
     });
+    decSwing.style.color = "var(--c64-purple)";
+    
     const incSwing = createButton("[+]", "transport-btn", () => {
       adjustSwing(5);
     });
+    incSwing.style.color = "var(--c64-purple)";
   
     swingRow.append(decSwing, swingVal, incSwing);
 
@@ -224,6 +358,7 @@ function renderVoiceField() {
 
 function setSynthWaveform(waveId) {
   if (!WAVE_TYPES.some((wave) => wave.id === waveId) || state.synthWaveform === waveId) return;
+  pushToHistory();
   state.synthWaveform = waveId;
   renderVoiceField();
   applyWaveformToVoices();
@@ -244,6 +379,10 @@ function renderDrumBox() {
     if (!state.pattern.drums) {
         state.pattern.drums = createInitialDrumPattern();
     }
+    
+    // Ensure drum settings exist
+    if (!state.pattern.channelSettings) state.pattern.channelSettings = {};
+    if (!state.pattern.channelSettings.drums) state.pattern.channelSettings.drums = { muted: false };
 
     refs.drumBody.innerHTML = "";
   
@@ -273,6 +412,26 @@ function renderDrumBox() {
     });
   
     headerRow.append(headerLabel);
+    
+    // Drum Mute Button
+    const muteBtn = document.createElement("button");
+    muteBtn.className = "transport-btn";
+    muteBtn.style.marginLeft = "0.5rem";
+    muteBtn.style.fontSize = "0.7rem";
+    
+    const isMuted = state.pattern.channelSettings.drums.muted;
+    muteBtn.textContent = "[MUTE]";
+    muteBtn.style.color = isMuted ? "var(--c64-green)" : "var(--c64-purple)";
+    
+    muteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const nextMute = !state.pattern.channelSettings.drums.muted;
+        state.pattern.channelSettings.drums.muted = nextMute;
+        muteBtn.style.color = nextMute ? "var(--c64-green)" : "var(--c64-purple)";
+    });
+    
+    headerRow.append(muteBtn);
+    
     refs.drumBody.append(headerRow);
 
     drumLanes.forEach((lane) => {
@@ -412,120 +571,94 @@ function renderSynthStack() {
     const controlsDiv = document.createElement("div");
     controlsDiv.className = "track-controls";
 
-    if (track.key === "arp") {
-        // Add Decay slider for Arp too
-        const decayGroup = document.createElement("div");
-        decayGroup.className = "track-control-group";
-        const decayLabel = document.createElement("span");
-        decayLabel.textContent = "DECAY:";
-        
-        const decaySlider = document.createElement("input");
-        decaySlider.type = "range";
-        decaySlider.min = "1";
-        decaySlider.max = "10";
-        decaySlider.step = "1";
-        decaySlider.className = "track-slider";
-        
-        let defaultDecay = DEFAULT_STEP_DECAY;
-        if (track.key === "bass") defaultDecay = DEFAULT_BASS_DECAY;
-        else if (track.key === "lead") defaultDecay = DEFAULT_LEAD_DECAY;
-        else if (track.key === "arp") defaultDecay = DEFAULT_ARP_DECAY;
+    // Waveform Selector (For all tracks including Arp)
+    const waveGroup = document.createElement("div");
+    waveGroup.className = "track-control-group";
+    
+    // Vertical line separator
+    const sep = document.createElement("span");
+    sep.textContent = "|";
+    sep.style.color = "var(--c64-cyan)";
+    sep.style.marginRight = "0.5rem";
+    waveGroup.append(sep);
 
-        decaySlider.value = state.pattern.channelSettings[track.key]?.decay ?? defaultDecay;
-        decaySlider.addEventListener("input", (e) => {
-            const val = parseInt(e.target.value);
+    // Wave Label
+    const waveLabel = document.createElement("span");
+    waveLabel.textContent = "WAVE:";
+    waveLabel.style.color = "var(--c64-cyan)";
+    waveGroup.append(waveLabel);
+
+    WAVE_TYPES.forEach(w => {
+        const isSelected = state.pattern.channelSettings[track.key]?.wave === w.id;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "transport-btn";
+        btn.style.color = "var(--c64-purple)";
+        
+        const waveColor = isSelected ? "var(--c64-green)" : "var(--c64-purple)";
+        btn.innerHTML = `[<span style="color: ${waveColor}">${w.label}</span>]`;
+
+        btn.addEventListener("click", () => {
             if (!state.pattern.channelSettings[track.key]) state.pattern.channelSettings[track.key] = {};
-            state.pattern.channelSettings[track.key].decay = val;
+            state.pattern.channelSettings[track.key].wave = w.id;
+            
+            if (state.editingPatternIdx === audio.playingPatternIdx) {
+            applyWaveformToVoices(state.pattern.channelSettings);
+            }
             
             // Update art
             const artEl = wrapper.querySelector(".track-art");
-            if (artEl) artEl.textContent = generatePetsciiArt(track.key);
-        });
-        
-        decayGroup.append(decayLabel, decaySlider);
-        controlsDiv.append(decayGroup);
-    } else {
-       const waveGroup = document.createElement("div");
-       waveGroup.className = "track-control-group";
-       
-       // Vertical line separator
-       const sep = document.createElement("span");
-       sep.textContent = "WAVE:";
-       sep.style.color = "var(--c64-cyan)";
-       waveGroup.append(sep);
-
-       WAVE_TYPES.forEach(w => {
-         const isSelected = state.pattern.channelSettings[track.key]?.wave === w.id;
-         const btn = document.createElement("button");
-         btn.type = "button";
-         btn.className = "transport-btn";
-         btn.style.color = "var(--c64-purple)";
-         
-         const waveColor = isSelected ? "var(--c64-green)" : "var(--c64-purple)";
-         btn.innerHTML = `[<span style="color: ${waveColor}">${w.label}</span>]`;
-
-         btn.addEventListener("click", () => {
-             if (!state.pattern.channelSettings[track.key]) state.pattern.channelSettings[track.key] = {};
-             state.pattern.channelSettings[track.key].wave = w.id;
-             
-             if (state.editingPatternIdx === audio.playingPatternIdx) {
-                applyWaveformToVoices(state.pattern.channelSettings);
-             }
-             
-             // Update art
-             const artEl = wrapper.querySelector(".track-art");
-             if (artEl) artEl.textContent = generatePetsciiArt(track.key);
-             
-             // Update button states manually
-             const buttons = waveGroup.querySelectorAll("button");
-             buttons.forEach((b, idx) => {
-                 const waveId = WAVE_TYPES[idx].id;
-                 const isNowSelected = waveId === w.id;
-                 const color = isNowSelected ? "var(--c64-green)" : "var(--c64-purple)";
-                 b.innerHTML = `[<span style="color: ${color}">${WAVE_TYPES[idx].label}</span>]`;
-             });
-         });
-         waveGroup.append(btn);
-       });
-       controlsDiv.append(waveGroup);
-
-       const separator = document.createElement("span");
-       separator.textContent = "|";
-       separator.style.color = "var(--c64-cyan)";
-       separator.style.margin = "0 0.5rem";
-       controlsDiv.append(separator);
-
-        const decayGroup = document.createElement("div");
-        decayGroup.className = "track-control-group";
-        const decayLabel = document.createElement("span");
-        decayLabel.textContent = "DECAY:";
-        
-        const decaySlider = document.createElement("input");
-        decaySlider.type = "range";
-        decaySlider.min = "1";
-        decaySlider.max = "10";
-        decaySlider.step = "1";
-        decaySlider.className = "track-slider";
-        
-        let defaultDecay = DEFAULT_STEP_DECAY;
-        if (track.key === "bass") defaultDecay = DEFAULT_BASS_DECAY;
-        else if (track.key === "lead") defaultDecay = DEFAULT_LEAD_DECAY;
-        else if (track.key === "arp") defaultDecay = DEFAULT_ARP_DECAY;
-
-        decaySlider.value = state.pattern.channelSettings[track.key]?.decay ?? defaultDecay;
-        decaySlider.addEventListener("input", (e) => {
-            const val = parseInt(e.target.value);
-            if (!state.pattern.channelSettings[track.key]) state.pattern.channelSettings[track.key] = {};
-            state.pattern.channelSettings[track.key].decay = val;
+            if (artEl) artEl.textContent = generatePetsciiArt(track.key, state.pattern.channelSettings[track.key]);
             
-            // Update art
-            const artEl = wrapper.querySelector(".track-art");
-            if (artEl) artEl.textContent = generatePetsciiArt(track.key);
+            // Update button states manually
+            const buttons = waveGroup.querySelectorAll("button");
+            buttons.forEach((b, idx) => {
+                const waveId = WAVE_TYPES[idx].id;
+                const isNowSelected = waveId === w.id;
+                const color = isNowSelected ? "var(--c64-green)" : "var(--c64-purple)";
+                b.innerHTML = `[<span style="color: ${color}">${WAVE_TYPES[idx].label}</span>]`;
+            });
         });
+        waveGroup.append(btn);
+    });
+    controlsDiv.append(waveGroup);
+
+    const separator = document.createElement("span");
+    separator.textContent = "|";
+    separator.style.color = "var(--c64-cyan)";
+    separator.style.margin = "0 0.5rem";
+    controlsDiv.append(separator);
+
+    const decayGroup = document.createElement("div");
+    decayGroup.className = "track-control-group";
+    const decayLabel = document.createElement("span");
+    decayLabel.textContent = "DECAY:";
+    
+    const decaySlider = document.createElement("input");
+    decaySlider.type = "range";
+    decaySlider.min = "1";
+    decaySlider.max = "10";
+    decaySlider.step = "1";
+    decaySlider.className = "track-slider";
+    
+    let defaultDecay = DEFAULT_STEP_DECAY;
+    if (track.key === "bass") defaultDecay = DEFAULT_BASS_DECAY;
+    else if (track.key === "lead") defaultDecay = DEFAULT_LEAD_DECAY;
+    else if (track.key === "arp") defaultDecay = DEFAULT_ARP_DECAY;
+
+    decaySlider.value = state.pattern.channelSettings[track.key]?.decay ?? defaultDecay;
+    decaySlider.addEventListener("input", (e) => {
+        const val = parseInt(e.target.value);
+        if (!state.pattern.channelSettings[track.key]) state.pattern.channelSettings[track.key] = {};
+        state.pattern.channelSettings[track.key].decay = val;
         
-        decayGroup.append(decayLabel, decaySlider);
-        controlsDiv.append(decayGroup);
-    }
+        // Update art
+        const artEl = wrapper.querySelector(".track-art");
+        if (artEl) artEl.textContent = generatePetsciiArt(track.key, state.pattern.channelSettings[track.key]);
+    });
+    
+    decayGroup.append(decayLabel, decaySlider);
+    controlsDiv.append(decayGroup);
 
     header.append(headerLeft, controlsDiv);
     
@@ -535,7 +668,7 @@ function renderSynthStack() {
     
     const artRow = document.createElement("div");
     artRow.className = "track-art";
-    artRow.textContent = generatePetsciiArt(track.key);
+    artRow.textContent = generatePetsciiArt(track.key, state.pattern.channelSettings[track.key]);
 
     const grid = document.createElement("div");
     grid.className = "step-grid";
@@ -643,25 +776,27 @@ function renderSynthStack() {
           // Click handler with "Focus then Toggle" logic
           btn.addEventListener("click", (event) => {
               // Check focus state BEFORE updating it
-              // We need to be careful about type coercion. index is number, state.focusedStep.index is number.
               const wasFocused = state.focusedStep?.channel === track.key && state.focusedStep?.index === index;
               
-              // If not focused, we ONLY focus.
-              // If focused, we toggle.
+              setFocusedStep(track.key, index);
               
-              if (!wasFocused) {
-                  setFocusedStep(track.key, index);
-                  setActiveTrack(track.key);
-                  // Do NOT call handleSynthButtonInteraction, or call it with false
-                  // But handleSynthButtonInteraction does other things (modifiers).
-                  // So we should call it, but ensure it knows it wasn't focused.
-                  handleSynthButtonInteraction(event, track.key, index, false);
-              } else {
-                  // It was focused.
-                  // We still want to update active track just in case?
-                  setActiveTrack(track.key);
-                  handleSynthButtonInteraction(event, track.key, index, true);
+              if (wasFocused) {
+                  const pitchModifier = event.metaKey || event.ctrlKey;
+                  const chordModifier = event.altKey;
+
+                  if (pitchModifier) {
+                    event.preventDefault();
+                    const delta = event.shiftKey ? -1 : 1;
+                    shiftStepNote(track.key, index, delta);
+                  } else if (event.shiftKey) {
+                    event.preventDefault();
+                    const delta = chordModifier ? -1 : 1;
+                    adjustSynthDirection(track.key, index, delta);
+                  } else {
+                    toggleSynthStep(track.key, index);
+                  }
               }
+              // We allow the event to bubble so the wrapper can handle setActiveTrack
           });
           btn.addEventListener("focus", () => rememberGridFocus(btn));
           refs.stepButtons.synth[track.key].push(btn);
@@ -694,7 +829,7 @@ function renderSynthControls() {
   
   const header = document.createElement("div");
   header.className = "synth-header";
-  header.textContent = "SYNTH";
+  header.textContent = "EXPERT KNOB TWIDDLER";
   controls.append(header);
 
   const knobRow = document.createElement("div");
@@ -808,6 +943,7 @@ function renderPatternControls() {
                     state.copyMode = { active: false, sourceIdx: null };
                 } else {
                     // Paste
+                    pushToHistory();
                     const sourcePattern = state.patterns[state.copyMode.sourceIdx];
                     // Deep copy
                     state.patterns[i] = JSON.parse(JSON.stringify(sourcePattern));
@@ -997,70 +1133,70 @@ function isOverlayVisible() {
   return refs.loadPanel?.dataset.visible === "true";
 }
 
-function renderSlotOverlay() {
+async function renderSlotOverlay() {
   if (!refs.loadList) return;
-  refs.loadList.innerHTML = "";
+  refs.loadList.innerHTML = "LOADING SONGS...";
   
-  // Create a grid for slots
-  refs.loadList.style.display = "grid";
-  refs.loadList.style.gridTemplateColumns = "1fr 1fr";
-  refs.loadList.style.gap = "1rem";
+  try {
+      const songs = await db.getAllSongs();
+      refs.loadList.innerHTML = "";
+      
+      if (songs.length === 0) {
+          refs.loadList.textContent = "NO SAVED SONGS FOUND.";
+          return;
+      }
 
-  placeholderUsers.forEach((user) => {
-      // User Header
-      const userHeader = document.createElement("div");
-      userHeader.style.gridColumn = "1 / -1";
-      userHeader.style.color = "var(--c64-orange)";
-      userHeader.style.fontWeight = "bold";
-      userHeader.style.marginTop = "0.5rem";
-      userHeader.textContent = `MAKER: ${user}`;
-      refs.loadList.append(userHeader);
+      // Create a grid for slots
+      refs.loadList.style.display = "grid";
+      refs.loadList.style.gridTemplateColumns = "1fr 1fr";
+      refs.loadList.style.gap = "1rem";
 
-      for (let slot = 0; slot < 3; slot++) {
-        const snapshot = loadSceneData(user, slot);
+      songs.forEach((song) => {
         const card = document.createElement("div");
         card.className = "overlay-card";
         
         const header = document.createElement("header");
-        header.textContent = `SLOT ${slot + 1}`;
+        header.textContent = song.trackName || "UNTITLED";
         card.append(header);
 
-        if (snapshot) {
-          const body = document.createElement("div");
-          body.textContent = [
-            `TRACK :: ${snapshot.trackName || "UNTITLED"}`,
-            `TEMPO :: ${snapshot.tempo}`
-          ].join("\n");
-          card.append(body);
-          
-          const footer = document.createElement("footer");
-          const loadBtn = createButton("[LOAD]", "transport-btn", () => {
-            loadUserScene(user, { slot });
-            closeSlotOverlay();
-          });
-          footer.append(loadBtn);
-          card.append(footer);
-        } else {
-          const body = document.createElement("div");
-          body.textContent = "EMPTY";
-          card.append(body);
-          
-          const footer = document.createElement("footer");
-          const armBtn = createButton("[SELECT]", "transport-btn", () => {
-            state.currentUser = user;
-            state.currentSlot = slot;
-            renderArtistMenu();
-            closeSlotOverlay();
-          });
-          footer.append(armBtn);
-          card.append(footer);
-        }
+        const body = document.createElement("div");
+        const date = new Date(song.updatedAt).toLocaleDateString();
+        body.textContent = [
+          `ARTIST :: ${song.currentUser || "UNKNOWN"}`,
+          `TEMPO  :: ${song.tempo}`,
+          `DATE   :: ${date}`
+        ].join("\n");
+        card.append(body);
+        
+        const footer = document.createElement("footer");
+        footer.style.display = "flex";
+        footer.style.justifyContent = "space-between";
+        
+        const loadBtn = createButton("[LOAD]", "transport-btn", () => {
+          applySnapshot(song);
+          closeSlotOverlay();
+        });
+        
+        const delBtn = createButton("[DEL]", "transport-btn", async (e) => {
+            e.stopPropagation();
+            if (confirm("DELETE SONG?")) {
+                await db.deleteSong(song.id);
+                renderSlotOverlay();
+            }
+        });
+        delBtn.style.color = "red";
+
+        footer.append(loadBtn, delBtn);
+        card.append(footer);
         refs.loadList.append(card);
-      }
-  });
+      });
+  } catch (e) {
+      refs.loadList.textContent = "ERROR LOADING SONGS: " + e;
+  }
 }
 
 function cycleDrumLevel(laneKey, index) {
+  pushToHistory();
   const current = state.pattern.drums[laneKey][index];
   const next = nextLevel(current);
   state.pattern.drums[laneKey][index] = next;
@@ -1079,6 +1215,7 @@ function updateDrumButton(laneKey, index) {
 }
 
 function toggleArpChordType(index) {
+    pushToHistory();
     const step = state.pattern.arp[index];
     if (!step || (step.velocity || 0) <= 0) return; // Only if active
     
@@ -1147,6 +1284,7 @@ function setStepOctave(channelKey, index, octave) {
 }
 
 function setStepNoteValue(channelKey, index, noteIndex) {
+  pushToHistory();
   const step = getSynthStep(channelKey, index);
   if (!step) return;
   const safe = clampNoteIndex(noteIndex);
@@ -1168,6 +1306,7 @@ function setStepNoteValue(channelKey, index, noteIndex) {
 }
 
 function adjustSynthDirection(channelKey, index, delta) {
+  pushToHistory();
   if (channelKey === "arp") return;
   const step = getSynthStep(channelKey, index);
   if (typeof step.direction !== "number") {
@@ -1182,6 +1321,7 @@ function adjustSynthDirection(channelKey, index, delta) {
 }
 
 function cycleArpChord(index, delta = 1) {
+  pushToHistory();
   const step = state.pattern.arp[index];
   const chords = arpChords;
   const currentIdx = chords.findIndex((chord) => chord.id === step.chordId);
@@ -1398,6 +1538,7 @@ function getCurrentScale() {
 }
 
 function adjustTempo(delta) {
+  pushToHistory();
   state.tempo = clamp(state.tempo + delta, 60, 200);
   const tempoEl = document.getElementById("tempo-readout");
   if (tempoEl) tempoEl.textContent = ` [${state.tempo}] `;
@@ -1407,6 +1548,7 @@ function adjustTempo(delta) {
 }
 
 function adjustSwing(delta) {
+  pushToHistory();
   state.swing = clamp(state.swing + delta, 0, 60);
   const swingEl = document.getElementById("swing-readout");
   if (swingEl) swingEl.textContent = ` [${state.swing}%] `;
@@ -1518,7 +1660,7 @@ function renderVisualizerControls() {
       renderVisualizerControls();
       // Update color based on mode
       if (refs.visualizerBody) {
-          refs.visualizerBody.className = i === 1 ? "viz-mode-1" : "viz-mode-other";
+          refs.visualizerBody.className = `viz-mode-${i}`;
       }
     });
     grid.append(btn);
@@ -1541,12 +1683,27 @@ function updateVisualizer() {
   const width = VISUALIZER_WIDTH;
   const height = VISUALIZER_HEIGHT;
   
+  // Calculate RMS (Volume)
+  let sumSq = 0;
+  let zeroCrossings = 0;
+  for (let i = 0; i < data.length; i++) {
+      sumSq += data[i] * data[i];
+      if (i > 0 && ((data[i] > 0 && data[i-1] <= 0) || (data[i] < 0 && data[i-1] >= 0))) {
+          zeroCrossings++;
+      }
+  }
+  const rms = Math.sqrt(sumSq / data.length);
+  const zcr = zeroCrossings / data.length; // 0.0 to 0.5 (Nyquist)
+  
   // Check for silence (approximate)
-  const isSilent = data.every(v => Math.abs(v) < 0.01);
+  const isSilent = rms < 0.01;
   
   let body = "";
   
-  if (isSilent) {
+  // Pass extra metrics to renderers
+  const metrics = { rms, zcr, isSilent };
+  
+  if (isSilent && state.visualizerMode !== 6 && state.visualizerMode !== 3) {
       // Only show line for Mode 1
       body = buildEmptyVisualizer(state.visualizerMode === 1);
   } else {
@@ -1554,10 +1711,10 @@ function updateVisualizer() {
           switch (state.visualizerMode) {
               case 1: body = renderVizMode1(data, width, height); break;
               case 2: body = renderVizMode2(data, width, height); break;
-              case 3: body = renderVizMode3(data, width, height); break;
-              case 4: body = renderVizMode4(data, width, height); break;
+              case 3: body = renderVizMode3(data, width, height, metrics); break;
+              case 4: body = renderVizMode4(data, width, height, metrics); break;
               case 5: body = renderVizMode5(data, width, height); break;
-              case 6: body = renderVizMode6(data, width, height); break;
+              case 6: body = renderVizMode6(data, width, height, metrics); break;
               default: body = renderVizMode1(data, width, height); break;
           }
       } catch (err) {
@@ -1566,7 +1723,7 @@ function updateVisualizer() {
       }
   }
   
-  refs.visualizerBody.textContent = body;
+  refs.visualizerBody.innerHTML = body;
 }
 
 function renderVizMode1(data, width, height) {
@@ -1614,54 +1771,145 @@ function renderVizMode2(data, width, height) {
     return lines.map(l => l.join("")).join("\n");
 }
 
-function renderVizMode3(data, width, height) {
+function renderVizMode3(data, width, height, metrics) {
     // "Center Burst"
     const lines = Array.from({ length: height }, () => Array(width).fill(" "));
     const cx = Math.floor(width / 2);
     const cy = Math.floor(height / 2);
     
-    // Use average volume to determine radius
-    const avg = data.reduce((acc, v) => acc + Math.abs(v), 0) / data.length;
-    const radius = Math.floor(avg * Math.min(width, height));
+    // Use RMS for radius
+    const radius = Math.floor(metrics.rms * Math.min(width, height) * 1.5);
+    
+    // Burst logic on silence
+    if (!renderVizMode3.lastRms) renderVizMode3.lastRms = 0;
+    if (!renderVizMode3.bursts) renderVizMode3.bursts = [];
+    
+    // If sound ends (volume drops significantly), trigger burst
+    if (renderVizMode3.lastRms > 0.1 && metrics.rms < 0.05) {
+        renderVizMode3.bursts.push({ r: 1, maxR: Math.min(width, height) / 2 });
+    }
+    renderVizMode3.lastRms = metrics.rms;
+    
+    // Update bursts
+    for (let i = renderVizMode3.bursts.length - 1; i >= 0; i--) {
+        renderVizMode3.bursts[i].r += 1;
+        if (renderVizMode3.bursts[i].r > renderVizMode3.bursts[i].maxR) {
+            renderVizMode3.bursts.splice(i, 1);
+        }
+    }
     
     const chars = ["*", "+", "x", "o", "O", "@", "#"];
-    const char = chars[Math.floor(avg * 10) % chars.length];
+    const char = chars[Math.floor(metrics.rms * 20) % chars.length];
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             const dx = x - cx;
             const dy = (y - cy) * 2; // Aspect ratio correction
             const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            // Main ball
             if (dist < radius) {
                 if (y >= 0 && y < height && x >= 0 && x < width) lines[y][x] = char;
-            } else if (dist < radius + 1 && Math.random() > 0.5) {
+            } 
+            // Noise field around ball
+            else if (dist < radius + 1 && Math.random() > 0.5) {
                 if (y >= 0 && y < height && x >= 0 && x < width) lines[y][x] = ".";
             }
+            
+            // Render bursts
+            renderVizMode3.bursts.forEach(b => {
+                if (Math.abs(dist - b.r) < 1.5) {
+                     if (y >= 0 && y < height && x >= 0 && x < width) lines[y][x] = "░";
+                }
+            });
         }
     }
     return lines.map(l => l.join("")).join("\n");
 }
 
-function renderVizMode4(data, width, height) {
-    // "Rain" / Matrix-ish
-    const lines = Array.from({ length: height }, () => Array(width).fill(" "));
+function renderVizMode4(data, width, height, metrics) {
+    // "Large Glyphs"
+    if (!renderVizMode4.particles) renderVizMode4.particles = [];
+    const particles = renderVizMode4.particles;
     
-    for (let x = 0; x < width; x++) {
-        const idx = Math.floor((x / width) * data.length);
-        const val = Math.abs(data[idx]);
-        if (val > 0.1) {
-            const len = Math.floor(val * height);
-            const startY = Math.floor(Math.random() * (height - len));
-            for (let i = 0; i < len; i++) {
-                if (startY + i < height) {
-                    if (startY + i >= 0 && startY + i < height) {
-                        lines[startY + i][x] = String.fromCharCode(0x2580 + Math.floor(Math.random() * 32));
+    // Detect beat/peak
+    const maxVal = metrics.rms; // Use RMS
+    
+    // Spawn logic
+    const spawnCount = maxVal > 0.3 ? 2 : (maxVal > 0.05 ? 1 : 0);
+    
+    if (spawnCount > 0 || (maxVal > 0.01 && Math.random() > 0.9)) { 
+        for(let k=0; k<Math.max(1, spawnCount); k++) {
+            const symbols = ["░", "▒", "▓", "█", "▄", "▀", "■", "▌", "▐", "▖", "▗", "▘", "▙", "▚", "▛", "▜", "▝", "▞", "▟"];
+            const char = symbols[Math.floor(Math.random() * symbols.length)];
+            
+            // Size based on pitch (ZCR)
+            // Low ZCR (bass) -> Small? High ZCR -> Big? Or inverse?
+            // User said "tone height ... will affect the size".
+            // Let's map ZCR (0-0.5) to size 3-6.
+            const size = 3 + Math.floor(metrics.zcr * 10); // 3 to ~8
+            
+            const x = Math.floor(Math.random() * (width - size));
+            const y = Math.floor(Math.random() * (height - size));
+            
+            // Color (1-6)
+            const colorIdx = Math.floor(Math.random() * 6) + 1;
+            
+            // Opacity based on volume
+            const opacity = Math.min(1, 0.4 + maxVal * 2);
+            
+            particles.push({
+                x, y, char, life: 1.0, colorIdx, size, opacity
+            });
+        }
+    }
+    
+    // Update particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].life -= 0.03;
+        if (particles[i].life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+    
+    // Render
+    const grid = [];
+    for(let y=0; y<height; y++) {
+        const row = [];
+        for(let x=0; x<width; x++) {
+            row.push({ char: " ", colorClass: "", style: "" });
+        }
+        grid.push(row);
+    }
+    
+    particles.forEach(p => {
+        for (let dy = 0; dy < p.size; dy++) {
+            for (let dx = 0; dx < p.size; dx++) {
+                const py = p.y + dy;
+                const px = p.x + dx;
+                
+                if (py >= 0 && py < height && px >= 0 && px < width) {
+                    // Flicker effect
+                    if (p.life > 0.1 && Math.random() < (p.life + 0.2)) {
+                        grid[py][px] = { 
+                            char: p.char, 
+                            colorClass: `viz-color-${p.colorIdx}`,
+                            style: `opacity: ${p.opacity * p.life}`
+                        };
                     }
                 }
             }
         }
-    }
-    return lines.map(l => l.join("")).join("\n");
+    });
+    
+    // Convert to HTML
+    return grid.map(row => {
+        const lineHtml = row.map(cell => {
+            if (cell.char === " ") return " ";
+            return `<span class="${cell.colorClass}" style="${cell.style}">${cell.char}</span>`;
+        }).join("");
+        return `<div class="viz-row">${lineHtml}</div>`;
+    }).join("");
 }
 
 function renderVizMode5(data, width, height) {
@@ -1684,18 +1932,40 @@ function renderVizMode5(data, width, height) {
     return lines.map(l => l.join("")).join("\n");
 }
 
-function renderVizMode6(data, width, height) {
-    // "Noise Field"
+function renderVizMode6(data, width, height, metrics) {
+    // "Vortex"
     const lines = Array.from({ length: height }, () => Array(width).fill(" "));
+    const cx = width / 2;
+    const cy = height / 2;
+    const time = Date.now() / 1000;
     
+    // Use Mode 1 chars
+    const chars = ["●", "○", "■", "□", "◆", "◇", "▲", "▼", "◀", "▶", "▄", "▀", "█", "░", "▒", "▓"];
+    
+    // Fade out on silence
+    if (metrics.isSilent) {
+        // Maybe show a faint remnant or nothing
+        return buildEmptyVisualizer(false);
+    }
+
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-            const idx = Math.floor(((x + y * width) / (width * height)) * data.length);
+            const dx = x - cx;
+            const dy = (y - cy) * 2;
+            const angle = Math.atan2(dy, dx);
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            // Sample audio based on angle and distance
+            const idx = Math.floor(((angle + Math.PI) / (2 * Math.PI)) * data.length);
             const val = Math.abs(data[idx] || 0);
-            if (val > 0.2) {
-                 const chars = [".", ",", "`", "'", ":", ";", "~", "=", "+", "*", "#", "@"];
+            
+            // Spiral effect
+            const spiral = Math.sin(dist * 0.5 - time * 5 + angle * 3);
+            
+            // Use RMS to modulate threshold
+            if (val > 0.1 && spiral > (0.5 - metrics.rms)) {
                  const charIdx = Math.floor(val * chars.length * 2) % chars.length;
-                 if (y >= 0 && y < height && x >= 0 && x < width) lines[y][x] = chars[charIdx];
+                 lines[y][x] = chars[charIdx];
             }
         }
     }
@@ -1755,6 +2025,7 @@ function setupAudio() {
   
   // Limiter and Master Output
   const limiter = new Tone.Limiter(-2);
+  audio.master = limiter;
   
   // Connect buses to limiter
   audio.cleanBus.connect(limiter);
@@ -1791,10 +2062,24 @@ function setupAudio() {
   // Apply waveforms and route bass/lead accordingly
   applyWaveformToVoices();
 
-  audio.arpSynth = new Tone.Synth({
+  // Arp Synth with Filter and LFO for "Flanger/Sweep" effect
+  // LFO synced to 2 measures (Pattern Length)
+  // Starts at -90deg (Min) -> Max -> Min
+  audio.arpFilterLfo = new Tone.LFO({
+    frequency: "2m",
+    min: 200,
+    max: 2000,
+    type: "triangle",
+    phase: 270 
+  }).sync().start(0);
+
+  audio.arpSynth = new Tone.MonoSynth({
     oscillator: { type: "square" },
-    envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.04 }
+    envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.1 },
+    filter: { type: "lowpass", rolloff: -12, Q: 2 }
   }).connect(audio.channelGains.arp);
+
+  audio.arpFilterLfo.connect(audio.arpSynth.filter.frequency);
 
   audio.stepLoop = new Tone.Loop((time) => advanceStep(time), STEP_DURATION);
   audio.stepLoop.start(0);
@@ -1866,6 +2151,21 @@ function applyWaveformToVoices(settings) {
       }
     }
   });
+
+  // Handle Arp Waveform
+  if (audio.arpSynth) {
+      const wave = currentSettings.arp?.wave || "square";
+      audio.arpSynth.set({ oscillator: { type: wave } });
+      
+      if (audio.channelGains.arp) {
+          audio.channelGains.arp.disconnect();
+          if (wave === "sine") {
+              audio.channelGains.arp.connect(audio.cleanBus);
+          } else {
+              audio.channelGains.arp.connect(audio.crushedBus);
+          }
+      }
+  }
 }
 
 function createDrumVoices(bus) {
@@ -1959,6 +2259,9 @@ function advanceStep(time) {
 }
 
 function triggerDrums(pattern, stepIndex, time) {
+  // Check Global Drum Mute
+  if (state.pattern.channelSettings?.drums?.muted) return;
+
   for (const lane of drumLanes) {
     const level = pattern.drums[lane.key][stepIndex];
     if (level > 0) {
@@ -1970,7 +2273,7 @@ function triggerDrums(pattern, stepIndex, time) {
 
 function triggerSynthTrack(pattern, channelKey, stepIndex, time) {
   // Check Mute State
-  if (state.pattern.channelSettings?.[channelKey]?.muted) return;
+  if (pattern.channelSettings?.[channelKey]?.muted) return;
 
   const step = pattern[channelKey][stepIndex];
   if (!step || (step.velocity || step.level || 0) <= 0) return;
@@ -2111,6 +2414,23 @@ function buildChord(rootNote, chordId) {
 }
 
 function advanceArp(time) {
+  // Update LFO intensity based on current step's mod value
+  // We use the main sequencer step to determine the mod value
+  const step = state.pattern.arp[audio.currentStep];
+  if (step && audio.arpFilterLfo) {
+      const mod = step.mod || 0;
+      const intensity = mod / 100;
+      const base = 200;
+      // Sweep range increases with mod value
+      const range = 4000 * intensity; 
+      
+      // Update LFO min/max
+      // We set them directly. Tone.LFO updates on next cycle or immediately?
+      // It usually updates immediately for next calculation.
+      audio.arpFilterLfo.min = base;
+      audio.arpFilterLfo.max = base + range;
+  }
+
   if (!audio.arpState.active || !audio.arpState.notes.length) return;
   const note = audio.arpState.notes[audio.arpState.index % audio.arpState.notes.length];
   audio.arpState.index += 1;
@@ -2159,23 +2479,25 @@ function updatePlayheadUI(activeSynthStep = audio.currentStep) {
   });
 }
 
-function handleSave() {
-  if (!state.currentUser) {
-    alert("Select a user slot first.");
-    return;
-  }
+async function handleSave() {
   const snapshot = {
     tempo: state.tempo,
     swing: state.swing,
     scaleId: state.scaleId,
-    voice: state.synthWaveform,
-    pattern: clonePattern(state.pattern)
+    trackName: state.trackName,
+    currentUser: state.currentUser,
+    patterns: JSON.parse(JSON.stringify(state.patterns)),
+    patternEnable: [...state.patternEnable],
+    visualizerMode: state.visualizerMode
   };
-  const len = saveSceneData(state.currentUser, state.currentSlot || 0, snapshot);
-  state.lastSaveLength = len;
-  alert(`Slot ${(state.currentSlot || 0) + 1} saved for ${state.currentUser}.`);
-  renderArtistMenu();
-  renderIntro();
+  
+  try {
+      await db.saveSong(snapshot);
+      alert("SONG SAVED TO DATABASE!");
+  } catch (e) {
+      console.error(e);
+      alert("SAVE FAILED: " + e);
+  }
 }
 
 function loadUserScene(user, { slot = 0, silent = false } = {}) {
@@ -2270,6 +2592,62 @@ function bindGlobalKeys() {
 }
 
 function handleGlobalKeyDown(event) {
+  // Ignore if typing in an input field
+  if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA") {
+      return;
+  }
+
+  // Undo / Redo
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+      event.preventDefault();
+      if (event.shiftKey) {
+          redo();
+      } else {
+          undo();
+      }
+      return;
+  }
+  
+  // Backspace / Delete to clear step
+  if (event.key === "Backspace" || event.key === "Delete") {
+      if (state.focusedStep) {
+          event.preventDefault();
+          const { channel, index, lane, subtype } = state.focusedStep;
+          
+          pushToHistory();
+
+          if (channel === "drums" && lane) {
+              state.pattern.drums[lane][index] = 0;
+              // Update UI
+              const btn = refs.stepButtons.drums[lane][index];
+              if (btn) {
+                  btn.dataset.level = "0";
+                  btn.innerHTML = `<span class="btn-level">${LEVEL_SYMBOLS[0]}</span>`;
+              }
+          } else if (channel === "arp") {
+              const step = state.pattern.arp[index];
+              if (step) {
+                  step.note = null;
+                  step.velocity = 0;
+                  step.chordId = null;
+                  const btnNote = refs.stepButtons.synth.arp[index * 2];
+                  const btnType = refs.stepButtons.synth.arp[index * 2 + 1];
+                  if (btnNote && btnType) renderArpButtons(btnNote, btnType, index);
+              }
+          } else {
+              const step = state.pattern[channel][index];
+              if (step) {
+                  step.velocity = 0;
+                  // We keep the note value but set velocity to 0
+                  renderSynthButtonContent(refs.stepButtons.synth[channel][index], channel, index);
+              }
+          }
+          updateKnobDisplays();
+          notifyStateChange();
+      }
+      return;
+  }
+
   if (isOverlayVisible()) {
     if (event.key === "Escape") {
       event.preventDefault();
@@ -2651,7 +3029,8 @@ function handleKnobClick(type, event) {
     return;
   }
   if (type === "volume") {
-    const next = (step?.velocity || 0) + (event.shiftKey ? -1 : 1);
+    const current = step.velocity || 0;
+    const next = clamp(current + (event.shiftKey ? -1 : 1), 0, 9);
     setStepVelocity(focus.channel, focus.index, next);
     return;
   }
@@ -2689,6 +3068,7 @@ function handleKnobNumberInput(type, digit) {
 function startKnobDrag(type, event) {
   if (event.button !== undefined && event.button !== 0) return;
   event.preventDefault();
+  pushToHistory();
   const target = event.currentTarget;
   target.setPointerCapture(event.pointerId);
   state.knobDrag = {
@@ -2751,7 +3131,9 @@ function applyKnobDrag(type, steps) {
     return;
   }
   if (type === "volume") {
-    setStepVelocity(focus.channel, focus.index, (step.velocity || 0) + steps);
+    const current = step.velocity || 0;
+    const next = clamp(current + steps, 0, 9);
+    setStepVelocity(focus.channel, focus.index, next);
     return;
   }
   if (type === "mod") {
@@ -2929,6 +3311,10 @@ function ensureStepDefaults(channelKey, index) {
   if (channelKey === "arp" && !step.chordId) {
     step.chordId = defaultArpChord.id;
   }
+  // Default volume for new steps
+  if ((step.velocity || 0) <= 0) {
+      step.velocity = (channelKey === "arp") ? 5 : DEFAULT_STEP_VELOCITY;
+  }
 }
 
 function shiftKeyboardOctave(delta) {
@@ -2971,7 +3357,161 @@ function handleNoteKeyInput(spec, channelKey, index) {
     nextBtn.focus();
   }
 }
+
+function captureVisualizerSnapshot() {
+  return new Promise((resolve) => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const size = 500;
+      canvas.width = size;
+      canvas.height = size;
+      
+      // Background
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, size, size);
+      
+      // Text
+      ctx.fillStyle = "#55ff55"; // C64 Green-ish
+      // Try to match the visualizer color if possible
+      if (refs.visualizerBody) {
+          const style = window.getComputedStyle(refs.visualizerBody);
+          ctx.fillStyle = style.color || "#55ff55";
+      }
+      
+      ctx.font = "20px monospace"; // Adjust size to fit
+      ctx.textBaseline = "top";
+      
+      const text = refs.visualizerBody ? refs.visualizerBody.innerText : "";
+      const lines = text.split("\n");
+      
+      // Center vertically
+      const lineHeight = 22;
+      const totalHeight = lines.length * lineHeight;
+      const startY = (size - totalHeight) / 2;
+      
+      lines.forEach((line, i) => {
+          // Center horizontally
+          const metrics = ctx.measureText(line);
+          const startX = (size - metrics.width) / 2;
+          ctx.fillText(line, startX, startY + (i * lineHeight));
+      });
+      
+      canvas.toBlob((blob) => {
+          resolve(blob);
+      }, "image/png");
+  });
+}
+
+async function handleExportMp3() {
+    if (!audio.ready) return;
+    
+    const btn = document.querySelector("button[textContent='[EXPORT AS MP3]']") || 
+                Array.from(document.querySelectorAll("button")).find(b => b.textContent === "[EXPORT AS MP3]");
+    
+    if (btn) btn.textContent = "[RECORDING.. PLEASE WAIT]";
+    
+    try {
+        // Stop playback first
+        handleStop();
+        
+        // Setup Recorder
+        const recorder = new Tone.Recorder();
+        if (!audio.master) throw new Error("Audio master not initialized");
+        audio.master.connect(recorder);
+        
+        // Start Recording
+        recorder.start();
+        
+        // Determine sequence
+        const enabledIndices = state.patternEnable
+            .map((enabled, idx) => enabled ? idx : -1)
+            .filter(idx => idx !== -1);
+            
+        const firstIdx = enabledIndices.length > 0 ? enabledIndices[0] : state.editingPatternIdx;
+        const count = enabledIndices.length || 1;
+        
+        // Set initial state
+        audio.playingPatternIdx = firstIdx;
+        applyWaveformToVoices(state.patterns[firstIdx].channelSettings);
+        
+        // Calculate duration
+        const barDuration = Tone.Time("1m").toSeconds();
+        const totalDuration = count * SYNTH_BARS * barDuration;
+        
+        // Start Playback
+        Tone.Transport.stop();
+        Tone.Transport.position = 0;
+        audio.currentStep = 0;
+        updatePlayheadUI(0);
+        Tone.Transport.start();
+        audio.playing = true;
+        
+        // Capture Snapshot in the middle of the first pattern
+        let snapshotBlob = null;
+        const snapshotTime = (SYNTH_BARS * barDuration) / 2;
+        
+        setTimeout(async () => {
+            try {
+                snapshotBlob = await captureVisualizerSnapshot();
+            } catch (e) {
+                console.warn("Snapshot failed", e);
+            }
+        }, snapshotTime * 1000);
+
+        // Wait for duration + tail
+        await new Promise(r => setTimeout(r, (totalDuration + 1.0) * 1000));
+        
+        // Stop
+        handleStop();
+        
+        // Stop Recording
+        const recording = await recorder.stop();
+        
+        // Upload to Local Server
+        const artist = (state.currentUser || "Unknown").trim();
+        const track = (state.trackName || "Untitled").trim();
+        // Rename to .mp3 as requested (even if it's webm/opus)
+        const filename = `${Date.now()}_${artist}_${track}.mp3`.replace(/[^a-z0-9._-]/gi, '_');
+        const imageFilename = `${Date.now()}_${artist}_${track}.png`.replace(/[^a-z0-9._-]/gi, '_');
+        
+        const formData = new FormData();
+        formData.append("audio", recording, filename);
+        if (snapshotBlob) {
+            formData.append("image", snapshotBlob, imageFilename);
+        }
+        formData.append("title", track);
+        formData.append("artist", artist);
+        formData.append("tempo", state.tempo);
+        formData.append("duration", totalDuration);
+
+        const response = await fetch("/api/upload", {
+            method: "POST",
+            body: formData
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || "Upload failed");
+        }
+
+        const result = await response.json();
+        alert("EXPORT SUCCESSFUL!\nSaved to server.");
+        
+        // Cleanup
+        audio.master.disconnect(recorder);
+        recorder.dispose();
+    } catch (e) {
+        console.error("Export Error:", e);
+        alert("Export failed: " + e.message);
+    } finally {
+        if (btn) btn.textContent = "[EXPORT AS MP3]";
+    }
+}
+
+// Removed handleCloudExport as it is now merged into handleExportMp3
+
 function setStepVelocity(channelKey, index, value) {
+  pushToHistory();
   const step = getSynthStep(channelKey, index);
   if (!step) return;
   const next = clamp(Math.round(value), 0, 9);
