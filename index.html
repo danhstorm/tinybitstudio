@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hitmaker C64 Sequencer</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/tone@next/build/Tone.js"></script>
+    <script type="module" src="main.js" defer></script>
+  </head>
+  <body>
+    <div id="viewport">
+      <div id="console" role="application" aria-label="Retro tracker workstation">
+        <pre id="frame-top" class="frame-line"></pre>
+        <div id="workspace">
+          <section id="drum-panel" class="ascii-panel" aria-label="Drum workstation">
+            <div class="panel-body single-frame" id="drum-body"></div>
+          </section>
+
+          <section id="synth-panel" class="ascii-panel" aria-label="Synth stack">
+            <div class="panel-body" id="synth-body"></div>
+          </section>
+
+          <section id="help-panel" class="ascii-panel" aria-label="Help section" style="display: none;">
+            <div class="panel-body" id="help-body"></div>
+          </section>
+
+          <section id="load-panel" class="ascii-panel" aria-label="Load cartridge slots" style="display: none;">
+            <div class="panel-body" id="load-body">
+                <div class="overlay-header">
+                    <span>CARTRIDGE SLOTS</span>
+                    <button type="button" id="load-close" class="transport-btn">[close]</button>
+                </div>
+                <div id="load-list"></div>
+            </div>
+          </section>
+
+          <section id="info-panel" class="ascii-panel" aria-label="Control hub">
+            <div class="panel-body" id="info-body">
+              <div id="intro-field"></div>
+              <div id="transport-body"></div>
+              <div id="voice-field"></div>
+              <div id="menu-field"></div>
+              <div id="visualizer-controls"></div>
+              <div id="visualizer-shell" class="single-frame">
+                <div id="visualizer-body"></div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <pre id="frame-bottom" class="frame-line"></pre>
+      </div>
+    </div>
+  </body>
+</html>
