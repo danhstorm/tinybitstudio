@@ -82,39 +82,26 @@ export function codeToDirection(code) {
 }
 
 export function generatePetsciiArt(trackKey, settings) {
-    const symbols = ["░", "▒", "▓", "█", "▄", "▀", "■", "▌", "▐", "▖", "▗", "▘", "▙", "▚", "▛", "▜", "▝", "▞", "▟"];
-    
-    if (!settings) {
-        // Fallback deterministic pattern based on key if no settings
-        let seed = trackKey.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        let art = "";
-        for (let i = 0; i < 5; i++) {
-            seed = (seed * 9301 + 49297) % 233280;
-            const index = Math.floor((seed / 233280) * symbols.length);
-            art += symbols[index];
-        }
-        return art;
-    }
+    // Char 1: Synth Type
+    let typeChar = "■";
+    if (trackKey === "bass") typeChar = "▙";
+    else if (trackKey === "lead") typeChar = "▟";
+    else if (trackKey === "arp") typeChar = "▚";
 
-    // Create a seed from settings
-    const values = [
-        settings.osc1Wave || 0,
-        settings.osc2Wave || 0,
-        settings.cutoff || 0,
-        settings.resonance || 0,
-        settings.attack || 0,
-        settings.decay || 0,
-        settings.detune || 0
-    ];
-    
-    let seed = trackKey.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    seed += values.reduce((acc, val) => acc + (typeof val === 'string' ? val.length : val * 10), 0);
+    // Char 2: Wave Type
+    let waveChar = "-";
+    const wave = settings?.wave || "sawtooth"; // Default
+    if (wave === "sawtooth") waveChar = "▼";
+    else if (wave === "square") waveChar = "▀";
+    else if (wave === "sine") waveChar = "~";
 
-    let art = "";
-    for (let i = 0; i < 5; i++) {
-        seed = (seed * 9301 + 49297) % 233280;
-        const index = Math.floor((seed / 233280) * symbols.length);
-        art += symbols[index];
-    }
-    return art;
+    // Char 3 & 4: Decay (1-10)
+    const decay = settings?.decay || 5;
+    let decayChars = "..";
+    if (decay > 8) decayChars = "||";
+    else if (decay > 6) decayChars = ":|";
+    else if (decay > 4) decayChars = "::";
+    else if (decay > 2) decayChars = ".:";
+    
+    return `${typeChar}${waveChar}${decayChars}`;
 }

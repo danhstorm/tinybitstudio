@@ -496,8 +496,8 @@ function renderSynthStack() {
   // Ensure channelSettings exists to prevent crashes with old state
   if (!state.pattern.channelSettings) {
     state.pattern.channelSettings = {
-        bass: { muted: false, wave: "saw", decay: DEFAULT_BASS_DECAY },
-        lead: { muted: false, wave: "pulse", decay: DEFAULT_LEAD_DECAY },
+        bass: { muted: false, wave: "square", decay: DEFAULT_BASS_DECAY },
+        lead: { muted: false, wave: "sawtooth", decay: DEFAULT_LEAD_DECAY },
         arp: { muted: false, decay: DEFAULT_ARP_DECAY }
     };
   }
