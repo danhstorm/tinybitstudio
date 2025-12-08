@@ -15,6 +15,29 @@
   --frame-width-ch: 96;
 }
 
+/* B&W Theme Override */
+body.theme-bw {
+  --c64-blue: #111;
+  --c64-cyan: #ddd;
+  --c64-purple: #888;
+  --c64-green: #fff;
+  --c64-orange: #aaa;
+  --c64-dark: #000;
+  --c64-shadow: #333;
+}
+
+body.theme-bw #console {
+  background: radial-gradient(circle at center, #222 60%, #000 100%);
+}
+
+body.theme-bw .step-btn[data-level="2"] {
+  color: #fff;
+}
+body.theme-bw .step-btn[data-level="1"] {
+  color: #aaa;
+}
+
+
 * {
   box-sizing: border-box;
   font-family: "C64Pro", monospace !important;
@@ -67,10 +90,17 @@ body {
   /* border-radius removed as requested */
   /* Vignette */
   background: radial-gradient(circle at center, #000 60%, #111 100%);
-  /* Apply SVG Filter */
-  filter: url(#fisheye);
-  /* Optimize rendering */
-  will-change: transform;
+}
+
+/* Global Ghosting Effect applied to content */
+#console {
+  /* Use the SVG filter injected by JS */
+  filter: url(#ghost-filter);
+}
+
+#console > * {
+  /* Removed individual drop-shadow */
+  filter: none;
 }
 
 /* Global CRT Overlay */
@@ -94,18 +124,15 @@ body {
 #console::after {
   content: "";
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0; left: -20px; right: -20px; bottom: 0;
   /* 
-     1. Rolling bar (Wider, Light & Dark)
-     2. Moving scanlines (Interference)
+     Single slight rolling gradient bar
   */
-  background: 
-    linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.4) 30%, rgba(255,255,255,0.1) 50%, rgba(0,0,0,0.4) 70%, transparent 100%),
-    repeating-linear-gradient(180deg, transparent 0, transparent 2px, rgba(255,255,255,0.02) 3px, rgba(0,0,0,0.2) 4px);
+  background: linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
   
-  background-size: 100% 200%, 100% 100%; /* Rolling bar is 200% height */
-  background-repeat: no-repeat, repeat;
-  animation: scanline-move 30s linear infinite; /* Much slower (was 10s) */
+  background-size: 100% 50%;
+  background-repeat: no-repeat;
+  animation: scanline-move 10s linear infinite;
   will-change: background-position;
   pointer-events: none;
   z-index: 1000;
@@ -113,10 +140,10 @@ body {
 
 @keyframes scanline-move {
   0% { 
-    background-position: 0% -200%, 0% 0%; 
+    background-position: 0% -100%; 
   }
   100% { 
-    background-position: 0% 300%, 0% 100%; 
+    background-position: 0% 200%; 
   }
 }
 
@@ -197,6 +224,46 @@ pre, code, kbd, samp {
   flex-direction: column;
 }
 
+#synth-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 3rem;
+  height: 100%;
+  border: none;
+  background: transparent;
+}
+
+.demo-btn-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  width: 100%;
+}
+
+.demo-btn-box {
+  flex: 1;
+  border: 1px solid var(--c64-orange);
+  color: var(--c64-orange);
+  padding: 0.2rem;
+  text-align: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.demo-btn-box:hover {
+  background: transparent;
+  color: var(--c64-orange);
+  border-color: var(--c64-orange);
+}
+
+
+
+.demo-btn-box:active {
+  background: var(--c64-orange);
+  color: var(--c64-dark);
+}
+
 .ascii-panel {
   position: relative;
   color: var(--c64-cyan);
@@ -221,7 +288,7 @@ pre, code, kbd, samp {
 }
 
 #visualizer-shell {
-  margin-top: 0.25rem;
+  margin-top: 0;
   margin-bottom: 1rem;
   padding: 0.35rem;
   align-self: stretch;
@@ -232,6 +299,37 @@ pre, code, kbd, samp {
   overflow: hidden;
 }
 
+#theme-controls {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  gap: 0.5rem;
+  z-index: 100;
+}
+
+.theme-btn {
+  background: var(--c64-blue);
+  color: var(--c64-light-blue);
+  border: 2px solid var(--c64-light-blue);
+  padding: 0.2rem 0.5rem;
+  font-family: "C64 Pro Mono", monospace;
+  font-size: 0.7rem;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px 0px rgba(0,0,0,0.5);
+}
+
+.theme-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px 0px rgba(0,0,0,0.5);
+}
+
+.demo-btn {
+  flex: 1;
+  min-width: 80px;
+  text-align: center;
+}
+
 #visualizer-body {
   display: block; /* Ensure block layout to prevent horizontal stacking */
   white-space: pre;
@@ -240,12 +338,12 @@ pre, code, kbd, samp {
   color: var(--c64-purple);
   width: 100%;
   max-width: 100%;
-  height: 340px; /* Fixed height to fit 24 lines (approx 24 * 14px) */
+  height: 275px; /* Fixed height to fit 20 lines (approx 20 * 14px) */
   overflow: hidden;
   text-align: center; /* Center horizontally */
   margin-left: auto;
   margin-right: auto;
-  border: 2px solid #fff;
+  border: 2px solid var(--c64-purple);
   padding: 0.25rem;
   position: relative;
 }
@@ -262,23 +360,13 @@ pre, code, kbd, samp {
 #drum-body {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  border: 2px solid var(--c64-orange);
+  gap: 0.4rem;
+  border: 2px solid var(--c64-purple);
   padding: 0.75rem;
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
 }
 
-#synth-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  justify-content: space-between;
-  border: none;
-  background: transparent;
-  padding: 0;
-  padding-bottom: 1rem;
-  height: 100%;
-}
+
 
 #info-body {
   display: flex;
@@ -286,6 +374,7 @@ pre, code, kbd, samp {
   gap: 0.75rem;
   height: 100%;
   border-color: var(--c64-cyan);
+  position: relative;
 }
 
 #intro-field {
@@ -293,6 +382,7 @@ pre, code, kbd, samp {
   font-size: 0.9rem;
   letter-spacing: 0.2em;
   font-weight: bold;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
 }
 
 #voice-field {
@@ -370,12 +460,24 @@ button:focus-visible {
 .transport-btn {
   color: var(--c64-green);
   font-size: 0.8rem;
+  outline: none !important;
+}
+
+.transport-btn:focus-visible {
+  outline: none !important;
 }
 
 .transport-btn.boxed-btn {
-  border: 1px solid var(--c64-green);
+  color: var(--c64-purple);
+  border: 1px solid var(--c64-purple);
   padding: 0.1rem 0.3rem;
   margin: 0 0.1rem;
+}
+
+.transport-btn.boxed-btn.playing,
+.transport-btn.boxed-btn:active {
+  color: var(--c64-green);
+  border-color: var(--c64-green);
 }
 
 .transport-btn.active {
@@ -410,19 +512,19 @@ button:focus-visible {
 }
 
 .track-box-bass {
-  border: 2px solid var(--c64-cyan);
+  border: 2px solid var(--c64-orange);
   background: rgba(110, 249, 255, 0.05);
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
 }
 
 .track-box-lead {
-  border: 2px solid var(--c64-cyan);
+  border: 2px solid var(--c64-orange);
   background: rgba(110, 249, 255, 0.05);
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
 }
 
 .track-box-arp {
-  border: 2px solid var(--c64-cyan);
+  border: 2px solid var(--c64-orange);
   background: rgba(110, 249, 255, 0.05);
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
 }
@@ -432,6 +534,15 @@ button:focus-visible {
   box-shadow: 
     6px 6px 0px 0px var(--c64-shadow),
     0 0 8px rgba(141, 255, 123, 0.2);
+}
+
+.active-section .track-art {
+  color: var(--c64-green) !important;
+  opacity: 1;
+}
+
+#synth-controls.active-section .synth-header {
+  color: var(--c64-green) !important;
 }
 
 .track-body-row {
@@ -515,7 +626,7 @@ button:focus-visible {
 
 .step-btn {
   width: 2ch;
-  min-height: 1.5rem;
+  min-height: 1.3rem;
   color: var(--c64-cyan);
   text-align: center;
   border: 1px solid transparent;
@@ -539,8 +650,9 @@ button:focus-visible {
 }
 
 .focused-step {
-  outline: 2px dashed var(--c64-green);
-  outline-offset: -2px;
+  outline: 2px solid var(--c64-green);
+  outline-offset: 2px;
+  z-index: 10;
 }
 
 /* Removed conflicting rule to keep marker consistent */
@@ -559,7 +671,7 @@ button:focus-visible {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: var(--c64-orange);
+  color: var(--c64-purple);
   font-weight: bold;
   margin-bottom: 0.25rem;
 }
@@ -568,7 +680,7 @@ button:focus-visible {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  margin-bottom: 0.1rem;
+  margin-bottom: 0.25rem;
 }
 
 .drum-label {
@@ -591,7 +703,7 @@ button:focus-visible {
   align-items: flex-start;
   gap: 0.25rem;
   margin-bottom: 0.25rem;
-  border: 2px solid var(--c64-cyan);
+  border: 2px solid var(--c64-orange);
   background: #050506;
   padding: 0.25rem 0.75rem;
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
@@ -599,7 +711,7 @@ button:focus-visible {
 
 .synth-header {
   font-weight: bold;
-  color: var(--c64-cyan);
+  color: var(--c64-orange);
   padding: 0.25rem 0;
   white-space: nowrap;
   margin-right: 1rem;
@@ -607,7 +719,7 @@ button:focus-visible {
 
 .module-title {
   font-weight: bold;
-  color: #fff;
+  color: var(--c64-cyan);
   padding: 0.25rem 0;
   width: 6ch;
   display: inline-block;
@@ -615,11 +727,12 @@ button:focus-visible {
 
 .knob-row {
   display: flex;
-  gap: 1rem;
+  gap: 0.5rem;
   flex-wrap: nowrap;
   flex: 1;
   justify-content: center;
   margin-top: 0.35rem;
+  padding-left: 0.5rem; /* Shift right to center visually in box */
 }
 
 .knob {
@@ -696,11 +809,17 @@ button:focus-visible {
   z-index: 2; /* Above indicator */
 }
 
-/* Dimmed state for the entire controls section */
-#synth-controls.dimmed {
+/* Dimmed state for the knobs only, keeping header bright */
+#synth-controls.dimmed .knob-row {
   opacity: 0.3;
-  pointer-events: none; /* Optional: disable interaction when dimmed */
+  pointer-events: none;
   filter: grayscale(100%);
+}
+
+#synth-controls.dimmed {
+  /* Ensure container stays visible */
+  opacity: 1;
+  filter: none;
 }
 
 .menu-entry {
@@ -779,7 +898,7 @@ button:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  border: 2px solid var(--c64-purple);
+  border: 2px solid var(--c64-cyan);
   padding: 0.25rem 0.5rem;
   background: rgba(255, 110, 240, 0.05);
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
@@ -860,7 +979,8 @@ button:focus-visible {
 .pattern-copy-btn {
   width: 100%;
   font-size: 0.6rem;
-  padding: 2px 0;
+  padding: 0;
+  line-height: 1rem;
   color: var(--c64-cyan);
   border: 1px solid var(--c64-cyan);
   cursor: pointer;
@@ -940,8 +1060,97 @@ button:focus-visible {
   text-align: center;
   font-weight: 900; /* Fatter */
   font-family: monospace, "C64Pro"; /* Monospaced */
-  font-size: 1.2em;
+  font-size: 1.6em; /* Larger */
   line-height: 1;
 }
 
 
+
+/* B&W Theme Overrides for Backgrounds */
+body.theme-bw .track-row,
+body.theme-bw .track-box-bass,
+body.theme-bw .track-box-lead,
+body.theme-bw .track-box-arp,
+body.theme-bw #synth-controls,
+body.theme-bw #pattern-controls,
+body.theme-bw .panel-body,
+body.theme-bw #help-panel,
+body.theme-bw #load-panel {
+  background: transparent !important;
+  border-color: #fff;
+}
+
+/* Theme Controls Fixed Position */
+#theme-controls-fixed {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  z-index: 2000;
+}
+
+.theme-label {
+  font-size: 0.6rem;
+  color: var(--c64-cyan);
+  margin-right: 0.25rem;
+}
+
+.theme-btn-graphic {
+  width: 24px;
+  height: 24px;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  background: #000;
+}
+
+.theme-btn-graphic:hover {
+  border-color: transparent;
+}
+
+/* Colorful Theme Icon */
+#theme-std-graphic {
+  background: linear-gradient(to bottom, 
+    #0c0f45 0%, #0c0f45 20%,
+    #6ef9ff 20%, #6ef9ff 40%,
+    #ff6ef0 40%, #ff6ef0 60%,
+    #8dff7b 60%, #8dff7b 80%,
+    #ffb96e 80%, #ffb96e 100%
+  );
+}
+
+/* B&W Theme Icon */
+#theme-bw-graphic {
+  background: linear-gradient(to bottom, 
+    #111 0%, #111 20%,
+    #ddd 20%, #ddd 40%,
+    #888 40%, #888 60%,
+    #fff 60%, #fff 80%,
+    #aaa 80%, #aaa 100%
+  );
+}
+
+/* Save Slot Inputs */
+.slot-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed var(--c64-orange);
+  color: var(--c64-orange);
+  font-family: "C64Pro", monospace;
+  font-size: inherit;
+  width: 100%;
+  margin-bottom: 0.2rem;
+}
+
+.slot-input:focus {
+  outline: none;
+  border-bottom: 1px solid var(--c64-green);
+  color: var(--c64-green);
+}
+
+.slot-meta {
+  color: var(--c64-cyan);
+  font-size: 0.7rem;
+}

@@ -161,7 +161,28 @@ document.addEventListener("DOMContentLoaded", () => {
         firstBtn.focus();
     }
     
+    setupGlobalFilters();
     initResponsiveViewport();
+    
+    // Global click listener for closing overlays
+    document.addEventListener("click", (e) => {
+        // Check if Load Overlay is open
+        if (isOverlayVisible()) {
+            // If click is outside load-panel and not on the load button
+            if (!refs.loadPanel.contains(e.target) && e.target.id !== "transport-load-btn" && !e.target.closest("#transport-load-btn")) {
+                closeSlotOverlay();
+            }
+        }
+        
+        // Check if Help Panel is open
+        if (refs.helpPanel && refs.helpPanel.style.display !== "none") {
+            // If click is outside help-panel and not on the help button
+            if (!refs.helpPanel.contains(e.target) && e.target.id !== "transport-help-btn" && !e.target.closest("#transport-help-btn")) {
+                toggleHelp();
+            }
+        }
+    });
+    
   } catch (e) {
     console.error("Fatal Initialization Error:", e);
     document.body.innerHTML += `<div style="position:fixed;top:0;left:0;background:red;color:white;z-index:9999;padding:1rem;">
@@ -170,6 +191,54 @@ document.addEventListener("DOMContentLoaded", () => {
     </div>`;
   }
 });
+
+function setupGlobalFilters() {
+    // Inject SVG Filter for Global Ghosting
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.style.position = "absolute";
+    svg.style.width = "0";
+    svg.style.height = "0";
+    svg.style.pointerEvents = "none";
+    
+    const filter = document.createElementNS(svgNS, "filter");
+    filter.id = "ghost-filter";
+    filter.setAttribute("x", "-20%");
+    filter.setAttribute("y", "-20%");
+    filter.setAttribute("width", "140%");
+    filter.setAttribute("height", "140%");
+    
+    // 1. Blur the source slightly
+    const blur = document.createElementNS(svgNS, "feGaussianBlur");
+    blur.setAttribute("in", "SourceGraphic");
+    blur.setAttribute("stdDeviation", "1.2"); // Increased blur
+    blur.setAttribute("result", "blur");
+    
+    // 2. Offset the blurred copy
+    const offset = document.createElementNS(svgNS, "feOffset");
+    offset.setAttribute("in", "blur");
+    offset.setAttribute("dx", "6"); // More to the right
+    offset.setAttribute("dy", "-3"); // Moved upwards
+    offset.setAttribute("result", "offset");
+    
+    // 3. Reduce opacity (faint)
+    const colorMatrix = document.createElementNS(svgNS, "feColorMatrix");
+    colorMatrix.setAttribute("in", "offset");
+    colorMatrix.setAttribute("type", "matrix");
+    // R G B A (Keep colors, reduce Alpha to 0.10)
+    colorMatrix.setAttribute("values", "1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.10 0");
+    colorMatrix.setAttribute("result", "faint");
+    
+    // 4. Blend with Screen (Lighten) to avoid dark doubles
+    const blend = document.createElementNS(svgNS, "feBlend");
+    blend.setAttribute("in", "SourceGraphic");
+    blend.setAttribute("in2", "faint");
+    blend.setAttribute("mode", "screen");
+    
+    filter.append(blur, offset, colorMatrix, blend);
+    svg.append(filter);
+    document.body.append(svg);
+}
 
 function cacheElements() {
   refs.drumBody = document.getElementById("drum-body");
@@ -245,7 +314,7 @@ function renderTransport() {
         input.maxLength = 24;
         input.className = "bare-input";
         input.style.width = "16ch";
-        input.style.textAlign = "center";
+        input.style.textAlign = "left";
         input.style.color = "var(--c64-orange)"; 
         input.addEventListener("input", (e) => {
             onChange(e.target.value.toUpperCase());
@@ -275,28 +344,74 @@ function renderTransport() {
     const fileRow = document.createElement("div");
     fileRow.className = "control-row";
     fileRow.style.flexWrap = "wrap"; // Allow wrapping for export button
-    const saveBtn = createButton("[SAVE]", "transport-btn", () => handleSave());
+    
+    const saveBtn = createButton("[SAVE]", "transport-btn", (e) => handleSave(e.target));
+    saveBtn.style.color = "var(--c64-purple)";
+    
     const loadBtn = createButton("[LOAD]", "transport-btn", () => openSlotOverlay());
+    loadBtn.id = "transport-load-btn";
+    loadBtn.style.color = "var(--c64-purple)";
+    
     const helpBtn = createButton("[HELP]", "transport-btn", () => toggleHelp());
+    helpBtn.id = "transport-help-btn";
+    helpBtn.style.color = "var(--c64-purple)";
     
     const resetBtn = createButton("[CLEAR]", "transport-btn", (e) => {
       const btn = e.target;
+      e.stopPropagation(); // Prevent bubbling
+      
       if (btn.textContent === "[SURE?]") {
           resetScene();
           btn.textContent = "[CLEAR]";
+          btn.style.color = "var(--c64-purple)";
+          // Remove global listener if it exists
+          if (btn._cancelListener) {
+              window.removeEventListener("click", btn._cancelListener);
+              btn._cancelListener = null;
+          }
       } else {
           const originalText = btn.textContent;
           btn.textContent = "[SURE?]";
+          btn.style.color = "var(--c64-green)";
+          
+          // Add global click listener to cancel
+          const cancelListener = (clickEvent) => {
+              if (clickEvent.target !== btn) {
+                  btn.textContent = originalText;
+                  btn.style.color = "var(--c64-purple)";
+                  window.removeEventListener("click", cancelListener);
+                  btn._cancelListener = null;
+              }
+          };
+          
+          // Delay adding listener slightly to avoid immediate trigger
           setTimeout(() => {
-              if (btn.textContent === "[SURE?]") btn.textContent = originalText;
-          }, 3000);
+              window.addEventListener("click", cancelListener);
+              btn._cancelListener = cancelListener;
+          }, 0);
       }
     });
+    resetBtn.style.color = "var(--c64-purple)";
     
-    const exportBtn = createButton("[EXPORT AS MP3]", "transport-btn", () => handleExportMp3());
-    exportBtn.style.color = "var(--c64-green)"; // Highlight it
+    const exportBtn = createButton("[EXPORT WAV]", "transport-btn", () => handleExportMp3());
+    exportBtn.style.color = "var(--c64-purple)"; 
     
     fileRow.append(saveBtn, loadBtn, helpBtn, resetBtn, exportBtn);
+    refs.transportBody.append(fileRow);
+
+    // Row 3: Demo Buttons
+    const demoRow = document.createElement("div");
+    demoRow.className = "demo-btn-row";
+    
+    ["DEMO 1", "DEMO 2", "DEMO 3"].forEach((label, idx) => {
+        const btn = document.createElement("button");
+        btn.className = "demo-btn-box";
+        btn.textContent = label;
+        btn.addEventListener("click", () => loadDemoSong(idx + 1));
+        demoRow.append(btn);
+    });
+    
+    refs.transportBody.append(demoRow);
 
     // Row 3: Transport Controls
     const transportRow = document.createElement("div");
@@ -305,7 +420,10 @@ function renderTransport() {
       handleStop();
       handlePlay();
     });
+    playBtn.id = "transport-play-btn"; // Add ID for state toggling
+    
     const stopBtn = createButton("STOP", "transport-btn boxed-btn", () => handleStop());
+    stopBtn.id = "transport-stop-btn";
     transportRow.append(playBtn, stopBtn);
 
     // Row 4: Tempo
@@ -316,6 +434,7 @@ function renderTransport() {
     const tempoVal = document.createElement("span");
     tempoVal.id = "tempo-readout";
     tempoVal.textContent = ` [${state.tempo}] `;
+    tempoVal.style.color = "var(--c64-orange)";
   
     const decTempo = createButton("[-]", "transport-btn", () => adjustTempo(-5));
     decTempo.style.color = "var(--c64-purple)";
@@ -332,6 +451,7 @@ function renderTransport() {
     const swingVal = document.createElement("span");
     swingVal.id = "swing-readout";
     swingVal.textContent = state.swing < 10 ? ` [0${state.swing}%] ` : ` [${state.swing}%] `;
+    swingVal.style.color = "var(--c64-orange)";
   
     const decSwing = createButton("[-]", "transport-btn", () => {
       adjustSwing(-5);
@@ -345,11 +465,50 @@ function renderTransport() {
   
     swingRow.append(decSwing, swingVal, incSwing);
 
-    refs.transportBody.append(titleRow, fileRow, createDivider(), transportRow, createDivider(), tempoRow, swingRow);
+    refs.transportBody.append(titleRow, fileRow, demoRow, createDivider(), transportRow, createDivider(), tempoRow, swingRow);
   } catch (e) {
     console.error("Render Transport Error:", e);
     refs.transportBody.innerHTML += `<div style="color:red">Transport Error: ${e.message}</div>`;
   }
+}
+
+function loadDemoSong(index) {
+    // Simple procedural generation for demos since we don't have stored files
+    resetScene();
+    state.trackName = `DEMO SONG ${index}`;
+    state.currentUser = "SYSTEM";
+    
+    // Generate some random patterns
+    state.patterns.forEach((pat, pIdx) => {
+        // Drums
+        drumLanes.forEach(lane => {
+            for(let i=0; i<DRUM_STEPS; i++) {
+                if (Math.random() > 0.7) pat.drums[lane.key][i] = Math.random() > 0.5 ? 2 : 1;
+            }
+        });
+        // Bass
+        for(let i=0; i<SYNTH_STEPS; i+=2) {
+            if (Math.random() > 0.6) {
+                pat.bass[i] = { note: 36 + Math.floor(Math.random() * 12), velocity: 8, decay: 4 };
+            }
+        }
+        // Lead
+        if (pIdx > 0) {
+            for(let i=0; i<SYNTH_STEPS; i+=4) {
+                if (Math.random() > 0.5) {
+                    pat.lead[i] = { note: 60 + Math.floor(Math.random() * 12), velocity: 8, decay: 6 };
+                }
+            }
+        }
+    });
+    
+    state.patternEnable = [true, true, false, false];
+    
+    renderTransport();
+    renderDrumBox();
+    renderSynthStack();
+    applyWaveformToVoices(state.pattern.channelSettings);
+    alert(`DEMO ${index} LOADED!`);
 }
 
 function renderVoiceField() {
@@ -372,6 +531,54 @@ function cycleWaveform(delta) {
   setSynthWaveform(WAVE_TYPES[nextIndex].id);
 }
 
+function setActiveTrack(trackKey) {
+  if (state.activeTrack === trackKey) return;
+  state.activeTrack = trackKey;
+  
+  // Update Drum Body
+  if (refs.drumBody) {
+      if (trackKey === "drums") refs.drumBody.classList.add("active-section");
+      else refs.drumBody.classList.remove("active-section");
+      
+      // Update Header Title
+      const header = refs.drumBody.querySelector(".drum-header-row span");
+      if (header) {
+          if (trackKey === "drums") header.classList.add("active-track-title");
+          else header.classList.remove("active-track-title");
+      }
+  }
+  
+  // Update Synth Tracks
+  if (refs.synthBody) {
+      const tracks = ["bass", "lead", "arp"];
+      tracks.forEach(key => {
+          const wrapper = refs.synthBody.querySelector(`.track-box-${key}`);
+          if (wrapper) {
+              if (trackKey === key) wrapper.classList.add("active-section");
+              else wrapper.classList.remove("active-section");
+              
+              const label = wrapper.querySelector(".track-label");
+              if (label) {
+                  if (trackKey === key) label.classList.add("active-track-title");
+                  else label.classList.remove("active-track-title");
+              }
+          }
+      });
+      
+      // Update Synth Controls (Top Module)
+      const controls = document.getElementById("synth-controls");
+      if (controls) {
+          if (tracks.includes(trackKey)) {
+              controls.classList.add("active-section");
+          } else {
+              controls.classList.remove("active-section");
+          }
+      }
+  }
+  
+  updateKnobDisplays();
+}
+
 function renderDrumBox() {
   if (!refs.drumBody) return;
   
@@ -386,6 +593,7 @@ function renderDrumBox() {
     if (!state.pattern.channelSettings.drums) state.pattern.channelSettings.drums = { muted: false };
 
     refs.drumBody.innerHTML = "";
+    const fragment = document.createDocumentFragment();
   
     // Make the drum body clickable to activate
     refs.drumBody.addEventListener("click", (e) => {
@@ -410,6 +618,13 @@ function renderDrumBox() {
     headerLabel.addEventListener("click", (e) => {
       e.stopPropagation();
       setActiveTrack("drums");
+      audio.currentStep = 0;
+      updatePlayheadUI();
+      setFocusedStep("drums", 0, "kick");
+      const firstBtn = refs.stepButtons.drums.kick?.[0];
+      if (firstBtn) {
+          firstBtn.focus();
+      }
     });
   
     headerRow.append(headerLabel);
@@ -432,8 +647,91 @@ function renderDrumBox() {
     });
     
     headerRow.append(muteBtn);
+
+    // Drum Delay Controls
+    const delayContainer = document.createElement("div");
+    delayContainer.style.display = "flex";
+    delayContainer.style.gap = "0.5rem";
+    delayContainer.style.alignItems = "center";
+    delayContainer.style.marginLeft = "auto"; // Push to right
+    delayContainer.style.marginRight = "0.5rem";
+
+    // Delay Time Selector (Cycler)
+    const delayTimeBtn = document.createElement("button");
+    delayTimeBtn.className = "transport-btn";
+    delayTimeBtn.style.fontSize = "0.7rem";
+    delayTimeBtn.style.color = "var(--c64-purple)";
     
-    refs.drumBody.append(headerRow);
+    const delayOptions = [
+        { label: "1/2", value: "2n" },
+        { label: "3/3", value: "2t" }, // Using 3/3 label as requested for triplet
+        { label: "4/4", value: "1m" }  // Using 4/4 label for 1 bar (measure)
+    ];
+
+    // Ensure default is valid
+    if (!state.pattern.channelSettings.drums.delayTime) {
+        state.pattern.channelSettings.drums.delayTime = "2t"; // Default to 3/3
+    }
+
+    const updateDelayBtn = () => {
+        const currentVal = state.pattern.channelSettings.drums.delayTime;
+        const opt = delayOptions.find(o => o.value === currentVal) || delayOptions[1];
+        delayTimeBtn.textContent = `[${opt.label}]`;
+    };
+    updateDelayBtn();
+
+    delayTimeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const currentVal = state.pattern.channelSettings.drums.delayTime;
+        const currentIdx = delayOptions.findIndex(o => o.value === currentVal);
+        const nextIdx = (currentIdx + 1) % delayOptions.length;
+        const nextVal = delayOptions[nextIdx].value;
+        
+        state.pattern.channelSettings.drums.delayTime = nextVal;
+        if (audio.drumDelay) {
+            audio.drumDelay.delayTime.value = nextVal;
+        }
+        updateDelayBtn();
+    });
+
+    // Delay Feedback Slider (labeled as DELAY)
+    const delaySliderContainer = document.createElement("div");
+    delaySliderContainer.style.display = "flex";
+    delaySliderContainer.style.alignItems = "center";
+    delaySliderContainer.style.gap = "0.25rem";
+
+    const delayLabel = document.createElement("span");
+    delayLabel.textContent = "DELAY:";
+    delayLabel.style.fontSize = "0.7rem";
+    delayLabel.style.color = "var(--c64-cyan)";
+
+    const delaySlider = document.createElement("input");
+    delaySlider.type = "range";
+    delaySlider.min = "0";
+    delaySlider.max = "0.8"; // Limit feedback
+    delaySlider.step = "0.05";
+    delaySlider.className = "track-slider"; // Use track-slider class
+    delaySlider.value = state.pattern.channelSettings.drums.delayFeedback || 0;
+    // Remove inline styles that conflict with class
+    // delaySlider.style.width = "50px"; 
+    // delaySlider.style.height = "4px";
+    // delaySlider.style.accentColor = "var(--c64-purple)";
+
+    delaySlider.addEventListener("input", (e) => {
+        const val = parseFloat(e.target.value);
+        state.pattern.channelSettings.drums.delayFeedback = val;
+        if (audio.drumDelay) {
+            audio.drumDelay.feedback.value = val;
+            // Also control wet level to mix it in
+            audio.drumDelay.wet.value = val > 0 ? 0.5 : 0; 
+        }
+    });
+
+    delaySliderContainer.append(delayLabel, delaySlider);
+    delayContainer.append(delayTimeBtn, delaySliderContainer);
+    headerRow.append(delayContainer);
+    
+    fragment.append(headerRow);
 
     drumLanes.forEach((lane) => {
       const row = document.createElement("div");
@@ -480,8 +778,10 @@ function renderDrumBox() {
       });
 
       row.append(grid);
-      refs.drumBody.append(row);
+      fragment.append(row);
     });
+  
+    refs.drumBody.append(fragment);
   
     // Rebuild focus grid after drums are rendered
     buildFocusGrid();
@@ -504,6 +804,7 @@ function renderSynthStack() {
   }
 
   refs.synthBody.innerHTML = "";
+  const fragment = document.createDocumentFragment();
   
   const topRow = document.createElement("div");
   topRow.className = "top-row-container";
@@ -512,7 +813,7 @@ function renderSynthStack() {
   const patternControls = renderPatternControls();
   
   topRow.append(synthControls, patternControls);
-  refs.synthBody.append(topRow);
+  fragment.append(topRow);
 
   try {
     synthTracks.forEach((track) => {
@@ -542,6 +843,13 @@ function renderSynthStack() {
     labelSpan.addEventListener("click", (e) => {
       e.stopPropagation();
       setActiveTrack(track.key);
+      audio.currentStep = 0;
+      updatePlayheadUI();
+      setFocusedStep(track.key, 0);
+      const firstBtn = refs.stepButtons.synth[track.key]?.[0];
+      if (firstBtn) {
+          firstBtn.focus();
+      }
     });
     
     // Mute Button
@@ -815,8 +1123,10 @@ function renderSynthStack() {
 
     bodyRow.append(artRow, grid);
     wrapper.append(header, bodyRow);
-    refs.synthBody.append(wrapper);
+    fragment.append(wrapper);
   });
+  
+  refs.synthBody.append(fragment);
   
   // Rebuild focus grid after synths are rendered
   buildFocusGrid();
@@ -830,9 +1140,32 @@ function renderSynthControls() {
   const controls = document.createElement("div");
   controls.id = "synth-controls";
   
+  // Apply active outline if a synth track is active
+  if (["bass", "lead", "arp"].includes(state.activeTrack)) {
+      controls.classList.add("active-section");
+  }
+  
   const header = document.createElement("div");
   header.className = "synth-header";
   header.textContent = "EXPERT KNOB TWIDDLING";
+  header.style.cursor = "pointer";
+  header.addEventListener("click", (e) => {
+      e.stopPropagation();
+      audio.currentStep = 0;
+      updatePlayheadUI();
+      // Focus the active track's first step if possible
+      if (state.activeTrack) {
+          if (state.activeTrack === "drums") {
+              setFocusedStep("drums", 0, "kick");
+              const firstBtn = refs.stepButtons.drums.kick?.[0];
+              if (firstBtn) firstBtn.focus();
+          } else {
+              setFocusedStep(state.activeTrack, 0);
+              const firstBtn = refs.stepButtons.synth[state.activeTrack]?.[0];
+              if (firstBtn) firstBtn.focus();
+          }
+      }
+  });
   controls.append(header);
 
   const knobRow = document.createElement("div");
@@ -1012,7 +1345,7 @@ function renderArpButtons(btnNote, btnType, index) {
     const active = velocity > 0;
     
     let noteLabel = active ? formatNoteForTrack("arp", step.note) : "..";
-    let typeLabel = ".";
+    let typeLabel = "";
     
     if (active) {
         const isMinor = step.chordId === "min";
@@ -1053,6 +1386,7 @@ function renderArtistMenu() {
 function toggleHelp() {
   if (!refs.helpPanel) return;
   const isHidden = refs.helpPanel.style.display === "none";
+  const btn = document.getElementById("transport-help-btn");
   
   if (isHidden) {
       // Show Help, Hide others
@@ -1061,11 +1395,13 @@ function toggleHelp() {
       if (refs.synthBody) refs.synthBody.closest("section").style.display = "none";
       if (refs.loadPanel) refs.loadPanel.style.display = "none";
       renderHelp();
+      if (btn) btn.style.color = "var(--c64-green)";
   } else {
       // Hide Help, Show others
       refs.helpPanel.style.display = "none";
       if (refs.drumBody) refs.drumBody.closest("section").style.display = "flex";
       if (refs.synthBody) refs.synthBody.closest("section").style.display = "flex";
+      if (btn) btn.style.color = "var(--c64-purple)";
   }
 }
 
@@ -1074,6 +1410,9 @@ function renderHelp() {
   refs.helpBody.innerHTML = "";
 
   const content = [
+    "HELP",
+    "====",
+    "",
     "COMMANDS & SHORTCUTS",
     "--------------------",
     "ARROWS      :: Move cursor",
@@ -1085,14 +1424,21 @@ function renderHelp() {
     "CMD+UP/DN   :: Pitch +/- 1 semitone",
     "CMD+SH+UP/DN:: Pitch +/- 1 octave",
     "SH+UP/DN    :: Slide direction (v · ^)",
-    "ALT+UP/DN   :: Pitch +/- 1 semitone (Focused)",
+    "ALT+UP/DN   :: Pitch +/- 1 semitone",
     "ALT+CLICK   :: Cycle Arp Chord",
     "",
     "KEYBOARD",
     "--------",
-    "Z...M, Q...U:: Play notes",
+    "A...L, W...P:: Play notes",
     "[ / ]       :: Change Octave",
-    "0-9         :: Set volume of selected note"
+    "0-9         :: Set volume of selected note",
+    "",
+    "SAVING & EXPORTING",
+    "------------------",
+    "SAVE stores your song locally in the browser so you",
+    "can load it later to continue working.",
+    "EXPORT saves your song as a .json file that you can",
+    "share with friends."
   ];
 
   const pre = document.createElement("pre");
@@ -1118,6 +1464,9 @@ function openSlotOverlay() {
   
   refs.loadPanel.dataset.visible = "true";
   refs.loadPanel.setAttribute("aria-hidden", "false");
+  
+  const btn = document.getElementById("transport-load-btn");
+  if (btn) btn.style.color = "var(--c64-green)";
 }
 
 function closeSlotOverlay() {
@@ -1130,6 +1479,9 @@ function closeSlotOverlay() {
   
   refs.loadPanel.dataset.visible = "false";
   refs.loadPanel.setAttribute("aria-hidden", "true");
+  
+  const btn = document.getElementById("transport-load-btn");
+  if (btn) btn.style.color = "var(--c64-purple)";
 }
 
 function isOverlayVisible() {
@@ -1158,36 +1510,78 @@ async function renderSlotOverlay() {
         const card = document.createElement("div");
         card.className = "overlay-card";
         
-        const header = document.createElement("header");
-        header.textContent = song.trackName || "UNTITLED";
-        card.append(header);
+        // Editable Song Title
+        const titleInput = document.createElement("input");
+        titleInput.className = "slot-input";
+        titleInput.value = song.trackName || "UNTITLED";
+        titleInput.placeholder = "SONG TITLE";
+        titleInput.addEventListener("change", (e) => {
+            const newVal = e.target.value;
+            db.saveSong({ ...song, trackName: newVal }).then(() => {
+                // Update local object so subsequent edits work
+                song.trackName = newVal;
+            });
+        });
+        card.append(titleInput);
 
         const body = document.createElement("div");
-        const date = new Date(song.updatedAt).toLocaleDateString();
-        body.textContent = [
-          `ARTIST :: ${song.currentUser || "UNKNOWN"}`,
-          `TEMPO  :: ${song.tempo}`,
-          `DATE   :: ${date}`
-        ].join("\n");
+        
+        // Editable Artist Name
+        const artistInput = document.createElement("input");
+        artistInput.className = "slot-input";
+        artistInput.value = song.currentUser || "UNKNOWN";
+        artistInput.placeholder = "ARTIST";
+        artistInput.addEventListener("change", (e) => {
+            const newVal = e.target.value;
+            db.saveSong({ ...song, currentUser: newVal }).then(() => {
+                song.currentUser = newVal;
+            });
+        });
+        body.append(artistInput);
+        
+        // Meta info (Tempo, Date)
+        const metaDiv = document.createElement("div");
+        metaDiv.className = "slot-meta";
+        const dateStr = new Date(song.updatedAt).toLocaleDateString("en-GB").replace(/\//g, "-");
+        metaDiv.textContent = `TEMPO: ${song.tempo} | ${dateStr}`;
+        body.append(metaDiv);
+        
         card.append(body);
         
         const footer = document.createElement("footer");
         footer.style.display = "flex";
         footer.style.justifyContent = "space-between";
+        footer.style.marginTop = "0.5rem";
         
         const loadBtn = createButton("[LOAD]", "transport-btn", () => {
           applySnapshot(song);
           closeSlotOverlay();
         });
         
-        const delBtn = createButton("[DEL]", "transport-btn", async (e) => {
+        const delBtn = createButton("[DEL]", "transport-btn", (e) => {
             e.stopPropagation();
-            if (confirm("DELETE SONG?")) {
-                await db.deleteSong(song.id);
-                renderSlotOverlay();
+            const btn = e.target;
+            
+            if (btn.textContent === "[SURE?]") {
+                db.deleteSong(song.id).then(() => renderSlotOverlay());
+            } else {
+                btn.textContent = "[SURE?]";
+                btn.style.color = "var(--c64-green)";
+                
+                const cancelListener = (clickEvent) => {
+                    if (clickEvent.target !== btn) {
+                        btn.textContent = "[DEL]";
+                        btn.style.color = "var(--c64-purple)";
+                        window.removeEventListener("click", cancelListener);
+                    }
+                };
+                
+                setTimeout(() => {
+                    window.addEventListener("click", cancelListener);
+                }, 0);
             }
         });
-        delBtn.style.color = "red";
+        delBtn.style.color = "var(--c64-purple)";
 
         footer.append(loadBtn, delBtn);
         card.append(footer);
@@ -1554,7 +1948,7 @@ function adjustSwing(delta) {
   pushToHistory();
   state.swing = clamp(state.swing + delta, 0, 60);
   const swingEl = document.getElementById("swing-readout");
-  if (swingEl) swingEl.textContent = ` [${state.swing}%] `;
+  if (swingEl) swingEl.textContent = state.swing < 10 ? ` [0${state.swing}%] ` : ` [${state.swing}%] `;
   if (audio.ready) {
     Tone.Transport.swing = state.swing / 100;
   }
@@ -1872,45 +2266,66 @@ function renderVizMode3(data, width, height, metrics) {
 }
 
 function renderVizMode4(data, width, height, metrics) {
-    // "Large Glyphs"
+    // "Signal Blocks" - Varied rectangles, highly reactive
     if (!renderVizMode4.particles) renderVizMode4.particles = [];
     const particles = renderVizMode4.particles;
     
-    // Detect beat/peak
-    const maxVal = metrics.rms; // Use RMS
-    
-    // Spawn logic
-    const spawnCount = maxVal > 0.3 ? 2 : (maxVal > 0.05 ? 1 : 0);
-    
-    if (spawnCount > 0 || (maxVal > 0.01 && Math.random() > 0.9)) { 
-        for(let k=0; k<Math.max(1, spawnCount); k++) {
-            const symbols = ["░", "▒", "▓", "█", "▄", "▀", "■", "▌", "▐", "▖", "▗", "▘", "▙", "▚", "▛", "▜", "▝", "▞", "▟"];
-            const char = symbols[Math.floor(Math.random() * symbols.length)];
-            
-            // Size based on pitch (ZCR)
-            // Low ZCR (bass) -> Small? High ZCR -> Big? Or inverse?
-            // User said "tone height ... will affect the size".
-            // Let's map ZCR (0-0.5) to size 3-6.
-            const size = 3 + Math.floor(metrics.zcr * 10); // 3 to ~8
-            
-            const x = Math.floor(Math.random() * (width - size));
-            const y = Math.floor(Math.random() * (height - size));
-            
-            // Color (1-6)
-            const colorIdx = Math.floor(Math.random() * 6) + 1;
-            
-            // Opacity based on volume
-            const opacity = Math.min(1, 0.4 + maxVal * 2);
-            
-            particles.push({
-                x, y, char, life: 1.0, colorIdx, size, opacity
-            });
+    const maxVal = metrics.rms; 
+    const zcr = metrics.zcr;
+
+    // Increased sensitivity: spawn more easily
+    let spawnCount = 0;
+    if (maxVal > 0.2) spawnCount = 3;
+    else if (maxVal > 0.1) spawnCount = 2;
+    else if (maxVal > 0.02) spawnCount = 1;
+
+    // Always a small chance to spawn background noise
+    if (Math.random() > 0.95) spawnCount++;
+
+    for(let k=0; k<spawnCount; k++) {
+        const symbols = ["░", "▒", "▓", "█", "▄", "▀", "■", "▌", "▐", "▖", "▗", "▘", "▙", "▚", "▛", "▜", "▝", "▞", "▟"];
+        const char = symbols[Math.floor(Math.random() * symbols.length)];
+        
+        // Shape logic based on ZCR (pitch)
+        let w, h;
+        const baseSize = 2 + Math.floor(maxVal * 10); // Volume affects overall scale
+
+        if (zcr > 0.3) {
+            // High pitch: Tall and thin
+            w = Math.max(1, Math.floor(baseSize * 0.5));
+            h = Math.max(2, Math.floor(baseSize * 2));
+        } else if (zcr < 0.1) {
+            // Low pitch: Wide and short
+            w = Math.max(2, Math.floor(baseSize * 2));
+            h = Math.max(1, Math.floor(baseSize * 0.5));
+        } else {
+            // Mid pitch: Boxy
+            w = baseSize;
+            h = baseSize;
         }
+
+        // Randomize slightly
+        w += Math.floor(Math.random() * 3);
+        h += Math.floor(Math.random() * 3);
+
+        const x = Math.floor(Math.random() * (width - w));
+        const y = Math.floor(Math.random() * (height - h));
+        
+        // Color (1-6) - Exclude Purple (3) and Pink (6)
+        const safeColors = [1, 2, 4, 5];
+        const colorIdx = safeColors[Math.floor(Math.random() * safeColors.length)];
+        
+        // Opacity
+        const opacity = Math.min(1, 0.5 + maxVal * 2);
+        
+        particles.push({
+            x, y, w, h, char, life: 1.0, colorIdx, opacity
+        });
     }
     
     // Update particles
     for (let i = particles.length - 1; i >= 0; i--) {
-        particles[i].life -= 0.03;
+        particles[i].life -= 0.04; // Slightly faster decay
         if (particles[i].life <= 0) {
             particles.splice(i, 1);
         }
@@ -1927,14 +2342,14 @@ function renderVizMode4(data, width, height, metrics) {
     }
     
     particles.forEach(p => {
-        for (let dy = 0; dy < p.size; dy++) {
-            for (let dx = 0; dx < p.size; dx++) {
+        for (let dy = 0; dy < p.h; dy++) {
+            for (let dx = 0; dx < p.w; dx++) {
                 const py = p.y + dy;
                 const px = p.x + dx;
                 
                 if (py >= 0 && py < height && px >= 0 && px < width) {
                     // Flicker effect
-                    if (p.life > 0.1 && Math.random() < (p.life + 0.2)) {
+                    if (p.life > 0.05) {
                         grid[py][px] = { 
                             char: p.char, 
                             colorClass: `viz-color-${p.colorIdx}`,
@@ -1984,43 +2399,99 @@ function renderVizMode5(data, width, height) {
 }
 
 function renderVizMode6(data, width, height, metrics) {
-    // "Vortex"
-    const lines = Array.from({ length: height }, () => Array(width).fill(" "));
-    const cx = width / 2;
-    const cy = height / 2;
-    const time = Date.now() / 1000;
+    // "Cosmic Runes" - Particle-based swirls with strange glyphs
+    if (!renderVizMode6.particles) renderVizMode6.particles = [];
+    if (!renderVizMode6.cooldown) renderVizMode6.cooldown = 0;
     
-    // Use Mode 1 chars
-    const chars = ["●", "○", "■", "□", "◆", "◇", "▲", "▼", "◀", "▶", "▄", "▀", "█", "░", "▒", "▓"];
-    
-    // Fade out on silence
-    if (metrics.isSilent) {
-        // Maybe show a faint remnant or nothing
-        return buildEmptyVisualizer(false);
+    const maxVal = metrics.rms;
+    renderVizMode6.cooldown--;
+
+    // Spawn burst on heavy volume
+    if (maxVal > 0.15 && renderVizMode6.cooldown <= 0) {
+        const safeColors = [1, 2, 4, 5];
+        const colorIdx = safeColors[Math.floor(Math.random() * safeColors.length)];
+        // Heavy boxy glyphs
+        const glyphs = ["█", "▓", "▒", "░", "■", "▀", "▄", "▌", "▐", "▖", "▗", "▘", "▙", "▚", "▛", "▜", "▝", "▞", "▟"];
+        const char = glyphs[Math.floor(Math.random() * glyphs.length)];
+        
+        // Spawn a ring of particles
+        const count = 16 + Math.floor(maxVal * 30);
+        const speed = 0.2 + maxVal * 1.0; // Slower movement
+        const rotation = (Math.random() - 0.5) * 0.1; // Slower rotation
+        
+        for(let i=0; i<count; i++) {
+            const angle = (i / count) * Math.PI * 2;
+            renderVizMode6.particles.push({
+                x: width/2,
+                y: height/2,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                rot: rotation,
+                char: char,
+                colorIdx: colorIdx,
+                life: 1.0,
+                decay: 0.005 + Math.random() * 0.015 // Slower decay
+            });
+        }
+        renderVizMode6.cooldown = 5;
     }
 
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            const dx = x - cx;
-            const dy = (y - cy) * 2;
-            const angle = Math.atan2(dy, dx);
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            
-            // Sample audio based on angle and distance
-            const idx = Math.floor(((angle + Math.PI) / (2 * Math.PI)) * data.length);
-            const val = Math.abs(data[idx] || 0);
-            
-            // Spiral effect
-            const spiral = Math.sin(dist * 0.5 - time * 5 + angle * 3);
-            
-            // Use RMS to modulate threshold
-            if (val > 0.1 && spiral > (0.5 - metrics.rms)) {
-                 const charIdx = Math.floor(val * chars.length * 2) % chars.length;
-                 lines[y][x] = chars[charIdx];
-            }
+    // Update particles
+    for (let i = renderVizMode6.particles.length - 1; i >= 0; i--) {
+        const p = renderVizMode6.particles[i];
+        
+        // Move
+        p.x += p.vx;
+        p.y += p.vy;
+        
+        // Rotate velocity vector (swirl effect)
+        const cos = Math.cos(p.rot);
+        const sin = Math.sin(p.rot);
+        const nx = p.vx * cos - p.vy * sin;
+        const ny = p.vx * sin + p.vy * cos;
+        p.vx = nx;
+        p.vy = ny;
+        
+        // Decay
+        p.life -= p.decay;
+        
+        if (p.life <= 0 || p.x < 0 || p.x >= width || p.y < 0 || p.y >= height) {
+            renderVizMode6.particles.splice(i, 1);
         }
     }
-    return lines.map(l => l.join("")).join("\n");
+
+    // Render Grid
+    const grid = [];
+    for(let y=0; y<height; y++) {
+        const row = [];
+        for(let x=0; x<width; x++) {
+            row.push({ char: " ", colorClass: "", style: "" });
+        }
+        grid.push(row);
+    }
+
+    // Draw particles (Newest on top)
+    renderVizMode6.particles.forEach(p => {
+        const x = Math.floor(p.x);
+        const y = Math.floor(p.y);
+        
+        if (x >= 0 && x < width && y >= 0 && y < height) {
+            grid[y][x] = {
+                char: p.char,
+                colorClass: `viz-color-${p.colorIdx}`,
+                style: `opacity: ${p.life}`
+            };
+        }
+    });
+
+    // Convert to HTML
+    return grid.map(row => {
+        const lineHtml = row.map(cell => {
+            if (cell.char === " ") return " ";
+            return `<span class="${cell.colorClass}" style="${cell.style}">${cell.char}</span>`;
+        }).join("");
+        return `<div class="viz-row">${lineHtml}</div>`;
+    }).join("");
 }
 
 async function handlePlay() {
@@ -2028,12 +2499,23 @@ async function handlePlay() {
     await Tone.start();
     setupAudio();
   }
+  
+  // Store original pattern to restore on stop
+  state.originalEditingPatternIdx = state.editingPatternIdx;
+
+  // Sync playing pattern to currently edited pattern
+  audio.playingPatternIdx = state.editingPatternIdx;
+  // Apply settings for this pattern immediately
+  applyWaveformToVoices(state.patterns[audio.playingPatternIdx].channelSettings);
+  
   Tone.Transport.stop();
   Tone.Transport.position = 0;
   audio.currentStep = 0;
   updatePlayheadUI(0);
+  updatePatternUI(); // Update pattern indicators
   Tone.Transport.start();
   audio.playing = true;
+  updateTransportUI();
 }
 
 function handleStop() {
@@ -2043,11 +2525,40 @@ function handleStop() {
   audio.currentStep = 0;
   audio.playing = false;
   
+  // Restore original editing pattern
+  if (typeof state.originalEditingPatternIdx === "number") {
+      state.editingPatternIdx = state.originalEditingPatternIdx;
+      state.pattern = state.patterns[state.editingPatternIdx];
+      // Re-render UI to show original pattern
+      renderSynthStack();
+      renderDrumBox();
+      const oldControls = document.getElementById("pattern-controls");
+      if (oldControls) oldControls.replaceWith(renderPatternControls());
+  }
+
+  // Sync playing pattern to currently edited pattern so playhead appears there
+  audio.playingPatternIdx = state.editingPatternIdx;
+  // Apply settings for this pattern so voices are ready
+  applyWaveformToVoices(state.patterns[audio.playingPatternIdx].channelSettings);
+  
   // Explicitly release voices to ensure silence
   Object.values(audio.synthVoices).forEach(voice => voice?.triggerRelease?.());
   audio.arpSynth?.triggerRelease?.();
   
   updatePlayheadUI(0);
+  updatePatternUI();
+  updateTransportUI();
+}
+
+function updateTransportUI() {
+    const playBtn = document.getElementById("transport-play-btn");
+    if (playBtn) {
+        if (audio.playing) {
+            playBtn.classList.add("playing");
+        } else {
+            playBtn.classList.remove("playing");
+        }
+    }
 }
 
 function withAudioReady(callback) {
@@ -2072,7 +2583,8 @@ function withAudioReady(callback) {
 function setupAudio() {
   // Create buses
   audio.cleanBus = new Tone.Gain(1);
-  audio.crushedBus = new Tone.BitCrusher(4);
+  // Increased bit depth from 4 to 8 for clearer, less distorted sound while keeping retro feel
+  audio.crushedBus = new Tone.BitCrusher(8);
   
   // Limiter and Master Output
   const limiter = new Tone.Limiter(-2);
@@ -2095,10 +2607,22 @@ function setupAudio() {
     audio.channelGains[channel] = new Tone.Gain(gain);
   });
 
+  // Drum Delay Effect
+  audio.drumDelay = new Tone.FeedbackDelay({
+    delayTime: "4n",
+    feedback: 0.2,
+    wet: 0
+  });
+  
+  // Connect Drum Delay to Crushed Bus (or Clean Bus? Retro style usually crushed)
+  // We will route drums -> drumDelay -> crushedBus
+  audio.drumDelay.connect(audio.crushedBus);
+
   audio.modEffects = {};
 
   // Default Routing: Drums and Arp to Crushed Bus
-  audio.channelGains.drums.connect(audio.crushedBus);
+  // audio.channelGains.drums.connect(audio.crushedBus); // OLD
+  audio.channelGains.drums.connect(audio.drumDelay); // NEW: Route through delay
   audio.channelGains.arp.connect(audio.crushedBus);
   // Ensure Bass and Lead are connected to something by default so they are audible on first play
   // applyWaveformToVoices will override this if successful, but this prevents silence on init
@@ -2162,16 +2686,17 @@ function createChipVoice(key, outputBus) {
   }
 
   return new Tone.MonoSynth({
-    oscillator: { type: "square" }, // Default, will be overridden by applyWaveformToVoices
-    envelope: { attack: 0.002, decay: 0.1, sustain: 0, release: 0.1 }, // Sustain 0 for percussive decay
-    filter: { type: "lowpass", rolloff: -12, Q: 1.5 },
+    oscillator: { type: "square" }, 
+    envelope: { attack: 0.002, decay: 0.1, sustain: 0, release: 0.1 }, 
+    // Open up the filter significantly to let the waveform character through
+    filter: { type: "lowpass", rolloff: -12, Q: 1 }, 
     filterEnvelope: {
       attack: 0.002,
-      decay: 0.12,
-      sustain: 0.4,
+      decay: 0.2,
+      sustain: 1.0, // Full sustain on filter to hear the raw wave
       release: 0.2,
-      baseFrequency: 90,
-      octaves: 2.2
+      baseFrequency: 200, 
+      octaves: 7 // Sweep up to ~25kHz (full range)
     }
   }).connect(vibrato);
 }
@@ -2198,6 +2723,15 @@ function applyWaveformToVoices(settings) {
       if (wave === "sine") {
         audio.channelGains[key].connect(audio.cleanBus);
       } else {
+        // For Saw/Square, we want them distinct.
+        // If bitcrusher is too heavy, they sound same.
+        // But we increased bit depth to 8.
+        // Let's ensure the oscillator type is set correctly.
+        // Tone.js "square" and "sawtooth" are standard.
+        // Maybe use "fmsquare" or "fmsawtooth" for more character?
+        // Or "pwm" for square?
+        // Let's stick to standard but maybe add a slight detune or chorus if needed?
+        // For now, just route to crushed bus.
         audio.channelGains[key].connect(audio.crushedBus);
       }
     }
@@ -2206,6 +2740,7 @@ function applyWaveformToVoices(settings) {
   // Handle Arp Waveform
   if (audio.arpSynth) {
       const wave = currentSettings.arp?.wave || "square";
+      // Use "fmsquare" / "fmsawtooth" for Arp to make it stand out? No, keep consistent.
       audio.arpSynth.set({ oscillator: { type: wave } });
       
       if (audio.channelGains.arp) {
@@ -2222,37 +2757,43 @@ function applyWaveformToVoices(settings) {
 function createDrumVoices(bus) {
   return {
     K: new Tone.MembraneSynth({
-      pitchDecay: 0.02,
-      octaves: 5,
+      pitchDecay: 0.01, // Reduced pitch decay for cleaner kick
+      octaves: 4, // Reduced octaves for less "laser" sound
       oscillator: { type: "sine" },
-      envelope: { attack: 0.001, decay: 0.25, sustain: 0, release: 0.2 }
+      envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 0.2 } // Longer decay
     }).connect(bus),
     S: new Tone.NoiseSynth({
       noise: { type: "white" },
-      envelope: { attack: 0.001, decay: 0.3, sustain: 0, release: 0.05 }
+      envelope: { attack: 0.001, decay: 0.25, sustain: 0, release: 0.05 } // Slightly shorter decay
     }).connect(bus),
-    C: new Tone.NoiseSynth({
-      noise: { type: "pink" },
-      envelope: { attack: 0.005, decay: 0.2, sustain: 0, release: 0.05 }
-    }).connect(bus),
-    H: new Tone.MetalSynth({
-      frequency: 6000,
-      envelope: { attack: 0.001, decay: 0.08, release: 0.02 },
-      harmonicity: 5.1,
-      modulationFrequency: 100
-    }).connect(bus),
-    P: new Tone.MembraneSynth({
-      pitchDecay: 0.02,
-      octaves: 2,
-      oscillator: { type: "sine" },
-      envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 0.2 }
-    }).connect(bus),
-    J: new Tone.MetalSynth({
+    C: new Tone.MetalSynth({
       frequency: 1400,
       envelope: { attack: 0.005, decay: 0.35, release: 0.25 },
       harmonicity: 5,
       modulationIndex: 16,
       resonance: 800,
+      octaves: 1.5
+    }).connect(bus),
+    H: new Tone.MetalSynth({
+      frequency: 200,
+      envelope: { attack: 0.0001, decay: 0.05, release: 0.02 },
+      harmonicity: 5.1,
+      modulationIndex: 32,
+      resonance: 4000,
+      octaves: 1.5
+    }).connect(bus),
+    P: new Tone.MembraneSynth({
+      pitchDecay: 0.08,
+      octaves: 1.2, // Reduced from 4 to avoid laser sound
+      oscillator: { type: "sine" },
+      envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 0.1 }
+    }).connect(bus),
+    B: new Tone.MetalSynth({
+      frequency: 4000,
+      envelope: { attack: 0.001, decay: 0.1, release: 0.3 }, // Sharper, shorter for the "shake"
+      harmonicity: 5.1,
+      modulationIndex: 32,
+      resonance: 4000,
       octaves: 1.5
     }).connect(bus)
   };
@@ -2267,9 +2808,13 @@ function getArpBurstCount() {
     return 4;
   }
 }
-
 function advanceStep(time) {
+  // Safety check: If transport is stopped, do not trigger sounds.
+  // This prevents "ghost" notes when stopping and resetting position.
+  if (Tone.Transport.state !== "started") return;
+
   // Determine which pattern to play
+  // If editing pattern is same as playing pattern, use state.pattern (live edits)
   // If editing pattern is same as playing pattern, use state.pattern (live edits)
   // Otherwise use stored pattern
   const currentPattern = (audio.playingPatternIdx === state.editingPatternIdx) 
@@ -2302,8 +2847,19 @@ function advanceStep(time) {
       // Apply new pattern settings to audio engine
       applyWaveformToVoices(state.patterns[nextPatternIdx].channelSettings);
 
-      // Update UI to show which pattern is playing
-      Tone.Draw.schedule(() => updatePatternUI(), time);
+      // Update UI to show which pattern is playing AND follow playhead
+      Tone.Draw.schedule(() => {
+          // Follow Playhead: Switch view to the new playing pattern
+          if (state.editingPatternIdx !== nextPatternIdx) {
+              state.editingPatternIdx = nextPatternIdx;
+              state.pattern = state.patterns[nextPatternIdx];
+              renderSynthStack();
+              renderDrumBox();
+              const oldControls = document.getElementById("pattern-controls");
+              if (oldControls) oldControls.replaceWith(renderPatternControls());
+          }
+          updatePatternUI();
+      }, time);
   }
   
   audio.currentStep = nextStep;
@@ -2409,6 +2965,16 @@ function playDrum(token, time, velocity) {
   const pitch = spec.pitch || "C4";
   const db = Tone.gainToDb(velocity || 1);
   voice.volume.value = db;
+  
+  if (token === "B") {
+      // Double trigger for "Jing-Jing" effect
+      // First hit
+      voice.triggerAttackRelease(duration, time);
+      // Second hit (approx 40ms later)
+      voice.triggerAttackRelease(duration, time + 0.04);
+      return;
+  }
+
   if (voice instanceof Tone.NoiseSynth || voice instanceof Tone.MetalSynth) {
     voice.triggerAttackRelease(duration, time);
   } else {
@@ -2513,24 +3079,37 @@ function updatePlayheadUI(activeSynthStep = audio.currentStep) {
   const drumStep = activeSynthStep % DRUM_STEPS;
   drumLanes.forEach((lane) => {
     refs.stepButtons.drums[lane.key]?.forEach((btn, idx) => {
-      btn.dataset.playhead = isViewingPlayingPattern && (idx === drumStep);
+      const shouldBeActive = isViewingPlayingPattern && (idx === drumStep);
+      // Only update DOM if value changes to avoid layout thrashing
+      const currentVal = btn.dataset.playhead === "true";
+      if (currentVal !== shouldBeActive) {
+          btn.dataset.playhead = shouldBeActive;
+      }
     });
   });
   synthTracks.forEach((track) => {
     if (track.key === "arp") {
         refs.stepButtons.synth[track.key]?.forEach((btn, idx) => {
             const stepIndex = Math.floor(idx / 2);
-            btn.dataset.playhead = isViewingPlayingPattern && (stepIndex === activeSynthStep);
+            const shouldBeActive = isViewingPlayingPattern && (stepIndex === activeSynthStep);
+            const currentVal = btn.dataset.playhead === "true";
+            if (currentVal !== shouldBeActive) {
+                btn.dataset.playhead = shouldBeActive;
+            }
         });
     } else {
         refs.stepButtons.synth[track.key]?.forEach((btn, idx) => {
-          btn.dataset.playhead = isViewingPlayingPattern && (idx === activeSynthStep);
+          const shouldBeActive = isViewingPlayingPattern && (idx === activeSynthStep);
+          const currentVal = btn.dataset.playhead === "true";
+          if (currentVal !== shouldBeActive) {
+              btn.dataset.playhead = shouldBeActive;
+          }
         });
     }
   });
 }
 
-async function handleSave() {
+async function handleSave(btn) {
   const snapshot = {
     tempo: state.tempo,
     swing: state.swing,
@@ -2544,7 +3123,18 @@ async function handleSave() {
   
   try {
       await db.saveSong(snapshot);
-      alert("SONG SAVED TO DATABASE!");
+      if (btn) {
+          const originalText = btn.textContent;
+          btn.textContent = "SAVED!";
+          // Use a bright blue color for feedback
+          btn.style.color = "var(--c64-cyan)"; 
+          setTimeout(() => {
+              btn.textContent = originalText;
+              btn.style.color = "var(--c64-purple)";
+          }, 3000);
+      } else {
+          alert("SONG SAVED TO DATABASE!");
+      }
   } catch (e) {
       console.error(e);
       alert("SAVE FAILED: " + e);
@@ -2571,20 +3161,41 @@ function applySnapshot(snapshot) {
   state.tempo = snapshot.tempo;
   state.swing = snapshot.swing;
   state.scaleId = snapshot.scaleId;
+  state.trackName = snapshot.trackName || "UNTITLED";
+  state.currentUser = snapshot.currentUser || "UNKNOWN";
+  state.visualizerMode = snapshot.visualizerMode || 5;
   
-  // Prepare pattern with settings
-  const pattern = clonePattern(snapshot.pattern);
+  // Handle both new (Multi-Pattern) and old (Single-Pattern) formats
+  if (snapshot.patterns) {
+      state.patterns = snapshot.patterns;
+      state.patternEnable = snapshot.patternEnable || [true, false, false, false];
+  } else if (snapshot.pattern) {
+      state.patterns = [
+          clonePattern(snapshot.pattern),
+          buildDefaultPatternSet(),
+          buildDefaultPatternSet(),
+          buildDefaultPatternSet()
+      ];
+      state.patternEnable = [true, false, false, false];
+  } else {
+      // Fallback
+      state.patterns = [
+          buildDefaultPatternSet(),
+          buildDefaultPatternSet(),
+          buildDefaultPatternSet(),
+          buildDefaultPatternSet()
+      ];
+      state.patternEnable = [true, false, false, false];
+  }
   
-  // Ensure drums exist
-  if (!pattern.drums) pattern.drums = createInitialDrumPattern();
+  // Reset to first pattern
+  state.editingPatternIdx = 0;
+  state.pattern = state.patterns[0];
+  audio.playingPatternIdx = 0;
   
-  // Ensure synth tracks exist
-  synthTracks.forEach(track => {
-      if (!pattern[track.key]) pattern[track.key] = createPatternForTrack(track.key);
-  });
-
-  if (!pattern.channelSettings) {
-      pattern.channelSettings = {
+  // Ensure settings exist
+  if (!state.pattern.channelSettings) {
+      state.pattern.channelSettings = {
         bass: { wave: "square", decay: 6 },
         lead: { wave: "sawtooth", decay: 8 },
         arp: { wave: "square", decay: 2 }
@@ -2592,23 +3203,31 @@ function applySnapshot(snapshot) {
       // Legacy support
       if (snapshot.voice) {
           ["bass", "lead", "arp"].forEach(key => {
-              pattern.channelSettings[key].wave = snapshot.voice;
+              state.pattern.channelSettings[key].wave = snapshot.voice;
           });
       }
   }
   
-  initPatterns();
-  state.patterns[0] = pattern;
-  state.pattern = state.patterns[0];
-  state.patternEnable = [true, false, false, false];
-  state.editingPatternIdx = 0;
-  audio.playingPatternIdx = 0;
-
-  clampPatternToScale();
-  renderTransport();
-  renderSynthStack();
-  renderDrumBox();
+  initPatterns(); // Re-initialize pattern references if needed
+  
+  // Update Audio Engine
+  Tone.Transport.bpm.value = state.tempo;
+  Tone.Transport.swing = state.swing / 100;
   applyWaveformToVoices(state.pattern.channelSettings);
+  
+  // Update UI
+  renderTransport();
+  renderDrumBox();
+  renderSynthStack();
+  
+  // Update Pattern Controls
+  const oldControls = document.getElementById("pattern-controls");
+  if (oldControls) {
+      const newControls = renderPatternControls();
+      oldControls.replaceWith(newControls);
+  }
+  
+  notifyStateChange();
 }
 
 function resetScene() {
@@ -2629,13 +3248,16 @@ function resetScene() {
 }
 
 function initPatterns() {
-    state.patterns = [
-        buildDefaultPatternSet(),
-        buildDefaultPatternSet(),
-        buildDefaultPatternSet(),
-        buildDefaultPatternSet()
-    ];
-    state.pattern = state.patterns[0];
+    // Only initialize if empty
+    if (!state.patterns || state.patterns.length === 0) {
+        state.patterns = [
+            buildDefaultPatternSet(),
+            buildDefaultPatternSet(),
+            buildDefaultPatternSet(),
+            buildDefaultPatternSet()
+        ];
+    }
+    state.pattern = state.patterns[state.editingPatternIdx || 0];
 }
 
 function bindGlobalKeys() {
@@ -2723,6 +3345,11 @@ function handleGlobalKeyDown(event) {
   if (event.key === "Enter") {
     event.preventDefault();
     if (audio.playing) {
+      const stopBtn = document.getElementById("transport-stop-btn");
+      if (stopBtn) {
+          stopBtn.classList.add("playing"); // Re-use playing class for green style
+          setTimeout(() => stopBtn.classList.remove("playing"), 200);
+      }
       handleStop();
     } else {
       handlePlay();
@@ -2793,7 +3420,11 @@ function handleGlobalKeyDown(event) {
     if ((event.ctrlKey || event.metaKey) && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
       event.preventDefault();
       const delta = event.key === "ArrowUp" ? 1 : -1;
-      shiftStepNote(target.dataset.channel, Number(target.dataset.index), delta);
+      if (event.shiftKey) {
+        shiftStepOctave(target.dataset.channel, Number(target.dataset.index), delta);
+      } else {
+        shiftStepNote(target.dataset.channel, Number(target.dataset.index), delta);
+      }
       return;
     }
     if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
@@ -3322,6 +3953,11 @@ function getModKnobRatio() {
 function setFocusedStep(channelKey, index, laneKey = null, subtype = null) {
   state.focusedStep = { channel: channelKey, index, lane: laneKey, subtype };
   
+  // Ensure the track is active when focused
+  if (state.activeTrack !== channelKey) {
+      setActiveTrack(channelKey);
+  }
+  
   // Update UI to reflect focus
   document.querySelectorAll(".focused-step").forEach(el => el.classList.remove("focused-step"));
   
@@ -3480,19 +4116,44 @@ function captureVisualizerSnapshot() {
 }
 
 async function handleExportMp3() {
-    if (!audio.ready) return;
+    // Ensure audio is ready (initialize if needed)
+    if (!audio.ready) {
+        try {
+            await Tone.start();
+            setupAudio();
+        } catch (e) {
+            console.error("Audio init failed", e);
+            alert("Audio initialization failed. Please try playing the song first.");
+            return;
+        }
+    }
     
-    const btn = document.querySelector("button[textContent='[EXPORT AS MP3]']") || 
-                Array.from(document.querySelectorAll("button")).find(b => b.textContent === "[EXPORT AS MP3]");
+    // Find button by ID or text
+    const btn = Array.from(document.querySelectorAll("button")).find(b => b.textContent.includes("EXPORT"));
+    const originalText = btn ? btn.textContent : "[EXPORT WAV]";
     
-    if (btn) btn.textContent = "[RECORDING.. PLEASE WAIT]";
+    if (btn) btn.textContent = "[RECORDING...]";
     
     try {
+        // Ensure context is running
+        if (Tone.context.state !== "running") {
+            await Tone.context.resume();
+        }
+
         // Stop playback first
         handleStop();
         
-        // Setup Recorder
-        const recorder = new Tone.Recorder();
+        // Setup Recorder - Try to force WAV if supported, otherwise default
+        // Note: Browser support for audio/wav in MediaRecorder is limited.
+        // Tone.Recorder uses MediaRecorder.
+        let recorder;
+        try {
+             recorder = new Tone.Recorder({ mimeType: "audio/wav", channels: 2 });
+        } catch (e) {
+             console.warn("audio/wav not supported, falling back to default");
+             recorder = new Tone.Recorder({ channels: 2 });
+        }
+
         if (!audio.master) throw new Error("Audio master not initialized");
         audio.master.connect(recorder);
         
@@ -3513,7 +4174,9 @@ async function handleExportMp3() {
         
         // Calculate duration
         const barDuration = Tone.Time("1m").toSeconds();
-        const totalDuration = count * SYNTH_BARS * barDuration;
+        // Record 2 loops of the entire sequence
+        const loops = 2;
+        const totalDuration = count * SYNTH_BARS * barDuration * loops;
         
         // Start Playback
         Tone.Transport.stop();
@@ -3522,6 +4185,7 @@ async function handleExportMp3() {
         updatePlayheadUI(0);
         Tone.Transport.start();
         audio.playing = true;
+        updateTransportUI();
         
         // Capture Snapshot in the middle of the first pattern
         let snapshotBlob = null;
@@ -3535,61 +4199,68 @@ async function handleExportMp3() {
             }
         }, snapshotTime * 1000);
 
-        // Wait for duration + tail
-        await new Promise(r => setTimeout(r, (totalDuration + 1.0) * 1000));
+        // Wait for duration
+        await new Promise(r => setTimeout(r, totalDuration * 1000));
         
-        // Stop
+        // Stop Playback (stops new notes)
         handleStop();
+        
+        // Wait for tail (2 seconds)
+        await new Promise(r => setTimeout(r, 2000));
         
         // Stop Recording
         const recording = await recorder.stop();
         
-        // Upload to Local Server
+        if (recording.size === 0) {
+            throw new Error("Recording is empty. Audio context might be suspended.");
+        }
+
+        // Determine extension based on mimeType
+        const mimeType = recorder.mimeType || "audio/webm";
+        let ext = "wav"; // Default to wav as requested
+        
+        if (mimeType.includes("wav")) ext = "wav";
+        else if (mimeType.includes("mp4")) ext = "mp4";
+        else if (mimeType.includes("ogg")) ext = "ogg";
+        else ext = "wav"; // Force wav extension even if webm, as requested
+
+        // Download Locally
         const artist = (state.currentUser || "Unknown").trim();
         const track = (state.trackName || "Untitled").trim();
-        // Rename to .mp3 as requested (even if it's webm/opus)
-        const filename = `${Date.now()}_${artist}_${track}.mp3`.replace(/[^a-z0-9._-]/gi, '_');
-        const imageFilename = `${Date.now()}_${artist}_${track}.png`.replace(/[^a-z0-9._-]/gi, '_');
         
-        const formData = new FormData();
-        formData.append("audio", recording, filename);
-        if (snapshotBlob) {
-            formData.append("image", snapshotBlob, imageFilename);
-        }
-        formData.append("title", track);
-        formData.append("artist", artist);
-        formData.append("tempo", state.tempo);
-        formData.append("duration", totalDuration);
-
-        const response = await fetch("/api/upload", {
-            method: "POST",
-            body: formData
-        });
-
-        if (!response.ok) {
-            // Try to read as text first to avoid JSON parse error on empty/html response
-            const text = await response.text();
-            let errMessage = "Upload failed";
-            try {
-                const json = JSON.parse(text);
-                errMessage = json.error || errMessage;
-            } catch (e) {
-                errMessage = `Server Error (${response.status}): ${text.substring(0, 100)}`;
-            }
-            throw new Error(errMessage);
-        }
-
-        const result = await response.json();
-        alert("EXPORT SUCCESSFUL!\nSaved to server.");
+        // Format: Artist - song name - DD-MM-YYYY
+        const dateStr = new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
+        const baseFilename = `${artist} - ${track} - ${dateStr}`;
+        // Sanitize filename
+        const safeFilename = baseFilename.replace(/[^a-z0-9 \-_]/gi, '');
+        
+        const filename = `${safeFilename}.${ext}`;
+        
+        // Create Download Link
+        const url = URL.createObjectURL(recording);
+        const anchor = document.createElement("a");
+        anchor.style.display = "none";
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
         
         // Cleanup
+        setTimeout(() => {
+            document.body.removeChild(anchor);
+            window.URL.revokeObjectURL(url);
+        }, 100);
+
+        alert(`EXPORT SUCCESSFUL!\nSaved as ${filename}`);
+        
+        // Cleanup Audio
         audio.master.disconnect(recorder);
         recorder.dispose();
     } catch (e) {
         console.error("Export Error:", e);
         alert("Export failed: " + e.message);
     } finally {
-        if (btn) btn.textContent = "[EXPORT AS MP3]";
+        if (btn) btn.textContent = originalText;
     }
 }
 
@@ -3669,4 +4340,28 @@ function notifyStateChange() {
       const input = document.getElementById("track-name-input");
       if (input) input.value = state.trackName;
   }
+}
+
+function setupThemeControls() {
+    const stdBtn = document.getElementById("theme-std-graphic");
+    const bwBtn = document.getElementById("theme-bw-graphic");
+    
+    if (stdBtn) {
+        stdBtn.addEventListener("click", () => {
+            document.body.classList.remove("theme-bw");
+        });
+    }
+    
+    if (bwBtn) {
+        bwBtn.addEventListener("click", () => {
+            document.body.classList.add("theme-bw");
+        });
+    }
+}
+
+// Initialize Theme Controls
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", setupThemeControls);
+} else {
+    setupThemeControls();
 }

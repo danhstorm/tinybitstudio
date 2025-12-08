@@ -36,6 +36,7 @@ export function buildDefaultPatternSet() {
   const pattern = {
     drums: createInitialDrumPattern(),
     channelSettings: {
+        drums: { muted: false, delayTime: "4n", delayFeedback: 0 },
         bass: { wave: "square", decay: 6 },
         lead: { wave: "sawtooth", decay: 8 },
         arp: { wave: "square", decay: 2 }

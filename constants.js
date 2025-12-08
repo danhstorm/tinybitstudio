@@ -36,8 +36,8 @@ export const MAX_NOTE_INDEX = NOTE_NAMES.length * NOTE_RANGE_OCTAVES - 1;
 export const DEFAULT_NOTE_INDEX = 36;
 export const DEFAULT_STEP_VELOCITY = 8;
 export const KNOB_DRAG_STEP_PX = 6;
-export const VISUALIZER_WIDTH = 34;
-export const VISUALIZER_HEIGHT = 24;
+export const VISUALIZER_WIDTH = 30;
+export const VISUALIZER_HEIGHT = 20;
 export const KEYBOARD_NOTE_MAP = {
   a: { semitone: 0, octave: 0 },
   w: { semitone: 1, octave: 0 },
@@ -57,9 +57,9 @@ export const KEYBOARD_NOTE_MAP = {
   p: { semitone: 3, octave: 1 }
 };
 export const WAVE_TYPES = [
-  { id: "sawtooth", label: "╱" },
-  { id: "square", label: "⊓" },
-  { id: "sine", label: "∿" }
+  { id: "sawtooth", label: "▲" },
+  { id: "square", label: "Π" },
+  { id: "sine", label: "〰" }
 ];
 export const arpChords = [
   { id: "maj", label: "M", code: "M", intervals: [0, 4, 7] },
@@ -77,7 +77,8 @@ export const drumLanes = [
   { key: "snare", label: "SNARE", token: "S" },
   { key: "clap", label: "CLAP", token: "C" },
   { key: "hat", label: "HATS", token: "H" },
-  { key: "perc", label: "TOM", token: "P" }
+  { key: "perc", label: "TOM", token: "P" },
+  { key: "bell", label: "BELLS", token: "B" }
 ];
 
 export const synthTracks = [
@@ -97,9 +98,10 @@ export const drumNoteMap = {
   K: { pitch: "C2", duration: "8n" },
   S: { duration: "16n" },
   H: { pitch: "C5", duration: "32n" },
-  P: { pitch: "G1", duration: "8n" },
+  P: { pitch: "C3", duration: "8n" },
   C: { pitch: "E6", duration: "8n" }, // Using Bell sound (J) for Clap
-  J: { pitch: "E6", duration: "8n" }
+  J: { pitch: "E6", duration: "8n" },
+  B: { pitch: "G6", duration: "8n" }
 };
 
 export const placeholderUsers = [

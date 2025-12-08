@@ -92,8 +92,8 @@ export function generatePetsciiArt(trackKey, settings) {
     let waveChar = "-";
     const wave = settings?.wave || "sawtooth"; // Default
     if (wave === "sawtooth") waveChar = "▲";
-    else if (wave === "square") waveChar = "⊓";
-    else if (wave === "sine") waveChar = "~";
+    else if (wave === "square") waveChar = "Π";
+    else if (wave === "sine") waveChar = "〰";
 
     // Char 3 & 4: Decay (1-10)
     const decay = settings?.decay || 5;

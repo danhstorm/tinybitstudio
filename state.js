@@ -38,7 +38,7 @@ export const state = {
   scaleId: scaleOptions[0].id,
   currentUser: placeholderUsers[0],
   currentSlot: 0,
-  synthWaveform: "square",
+  synthWaveform: "sawtooth",
   trackName: "DEMO SONG",
   trackNameEdited: false,
   keyboardOctave: 3,
@@ -54,7 +54,7 @@ export const state = {
   patterns: initialPatterns, // Will hold 4 patterns
   patternEnable: [true, false, false, false],
   editingPatternIdx: 0,
-  visualizerMode: 1
+  visualizerMode: 5
 };
 
 export const audio = {

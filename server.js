@@ -32,6 +32,14 @@ db.serialize(() => {
 
 // Middleware
 app.use(express.json());
+
+// Enable CORS for local development (Live Server)
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+});
+
 app.use(express.static(__dirname)); // Serve frontend files
 app.use('/uploads', express.static(UPLOAD_DIR)); // Serve uploaded MP3s
 
