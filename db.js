@@ -1,4 +1,4 @@
-const DB_NAME = "HitmakerDB";
+const DB_NAME = "TinyBitStudioDB";
 const DB_VERSION = 1;
 const STORE_NAME = "songs";
 

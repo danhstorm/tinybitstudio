@@ -3,7 +3,7 @@ import { isArpChannel, clonePattern, createEmptyDrumPattern, createLinearSynthPa
 import { clamp, velocityToLevel } from "./utils.js";
 
 export function getStorageKey(user, slot = 0) {
-  return `hitmaker_slot_${user}_${slot}`;
+  return `tinybitstudio_slot_${user}_${slot}`;
 }
 
 export function saveSceneData(user, slot, snapshot) {

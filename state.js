@@ -69,6 +69,7 @@ export const audio = {
   },
   arpSynth: null,
   playingPatternIdx: 0,
+  nextPatternIdx: null,
   stepLoop: null,
   arpLoop: null,
   currentStep: 0,

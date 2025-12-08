@@ -18,6 +18,7 @@ import {
 
 import { state, audio, refs, focusGrid } from "./state.js";
 import { db } from "./db.js";
+import { demoSongs } from "./demos.js";
 import { 
   buildDefaultPatternSet, createPatternForTrack, createLinearSynthPattern, 
   createArpPattern, createInitialDrumPattern, createEmptyDrumPattern, 
@@ -273,7 +274,7 @@ function buildPanelBorders() {
 
 function renderIntro() {
   if (!refs.introField) return;
-  refs.introField.textContent = "HIT MAKER";
+  refs.introField.textContent = "TINY BIT STUDIO";
 }
 
 function renderTransport() {
@@ -395,8 +396,35 @@ function renderTransport() {
     
     const exportBtn = createButton("[EXPORT WAV]", "transport-btn", () => handleExportMp3());
     exportBtn.style.color = "var(--c64-purple)"; 
+
+    const jsonBtn = createButton("[JSON]", "transport-btn", () => {
+        const snapshot = {
+            patterns: state.patterns,
+            patternEnable: state.patternEnable,
+            tempo: state.tempo,
+            swing: state.swing,
+            trackName: state.trackName,
+            currentUser: state.currentUser,
+            scaleId: state.scaleId
+        };
+        const jsonStr = JSON.stringify(snapshot);
+        console.log(jsonStr);
+        
+        // Try to copy to clipboard
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(jsonStr).then(() => {
+                alert("Song data copied to clipboard! Paste it into the chat.");
+            }).catch(err => {
+                console.error("Clipboard failed", err);
+                alert("Could not copy to clipboard. Please copy the JSON from the console manually.");
+            });
+        } else {
+            alert("Clipboard API not available. Please copy the JSON from the console manually.");
+        }
+    });
+    jsonBtn.style.color = "var(--c64-cyan)";
     
-    fileRow.append(saveBtn, loadBtn, helpBtn, resetBtn, exportBtn);
+    fileRow.append(saveBtn, loadBtn, helpBtn, resetBtn, exportBtn, jsonBtn);
     refs.transportBody.append(fileRow);
 
     // Row 3: Demo Buttons
@@ -416,15 +444,22 @@ function renderTransport() {
     // Row 3: Transport Controls
     const transportRow = document.createElement("div");
     transportRow.className = "control-row transport-row";
-    const playBtn = createButton("PLAY", "transport-btn boxed-btn", () => {
+    
+    const playAllBtn = createButton("[PLAY ALL]", "transport-btn boxed-btn", () => {
       handleStop();
-      handlePlay();
+      handlePlay('song');
     });
-    playBtn.id = "transport-play-btn"; // Add ID for state toggling
+    playAllBtn.id = "transport-play-all-btn";
+
+    const playBtn = createButton("[PLAY]", "transport-btn boxed-btn", () => {
+      handleStop();
+      handlePlay('pattern');
+    });
+    playBtn.id = "transport-play-btn"; 
     
     const stopBtn = createButton("STOP", "transport-btn boxed-btn", () => handleStop());
     stopBtn.id = "transport-stop-btn";
-    transportRow.append(playBtn, stopBtn);
+    transportRow.append(playAllBtn, playBtn, stopBtn);
 
     // Row 4: Tempo
     const tempoRow = document.createElement("div");
@@ -473,42 +508,50 @@ function renderTransport() {
 }
 
 function loadDemoSong(index) {
-    // Simple procedural generation for demos since we don't have stored files
+    const songData = demoSongs[index];
+    if (!songData) {
+        console.log(`Demo ${index} not implemented yet.`);
+        alert(`Demo ${index} coming soon!`);
+        return;
+    }
+
     resetScene();
-    state.trackName = `DEMO SONG ${index}`;
-    state.currentUser = "SYSTEM";
     
-    // Generate some random patterns
-    state.patterns.forEach((pat, pIdx) => {
-        // Drums
-        drumLanes.forEach(lane => {
-            for(let i=0; i<DRUM_STEPS; i++) {
-                if (Math.random() > 0.7) pat.drums[lane.key][i] = Math.random() > 0.5 ? 2 : 1;
+    // Apply data
+    if (songData.patterns && Array.isArray(songData.patterns)) {
+        songData.patterns.forEach((pat, i) => {
+            if (i < 4) {
+                state.patterns[i] = JSON.parse(JSON.stringify(pat));
             }
         });
-        // Bass
-        for(let i=0; i<SYNTH_STEPS; i+=2) {
-            if (Math.random() > 0.6) {
-                pat.bass[i] = { note: 36 + Math.floor(Math.random() * 12), velocity: 8, decay: 4 };
-            }
-        }
-        // Lead
-        if (pIdx > 0) {
-            for(let i=0; i<SYNTH_STEPS; i+=4) {
-                if (Math.random() > 0.5) {
-                    pat.lead[i] = { note: 60 + Math.floor(Math.random() * 12), velocity: 8, decay: 6 };
-                }
-            }
-        }
-    });
+    }
+
+    if (songData.channelSettings) {
+        state.channelSettings = JSON.parse(JSON.stringify(songData.channelSettings));
+    }
+
+    state.tempo = songData.tempo || 120;
+    state.swing = songData.swing || 0;
+    state.trackName = `DEMO SONG ${index}`;
+    state.currentUser = songData.currentUser || "SYSTEM";
+    state.scaleId = songData.scaleId || "cmaj";
     
-    state.patternEnable = [true, true, false, false];
-    
+    if (songData.patternEnable) {
+        state.patternEnable = [...songData.patternEnable];
+    }
+
+    state.pattern = state.patterns[state.editingPatternIdx];
+
     renderTransport();
     renderDrumBox();
     renderSynthStack();
-    applyWaveformToVoices(state.pattern.channelSettings);
-    alert(`DEMO ${index} LOADED!`);
+    
+    const oldControls = document.getElementById("pattern-controls");
+    if (oldControls) {
+        const newControls = renderPatternControls();
+        oldControls.replaceWith(newControls);
+    }
+    applyWaveformToVoices(state.patterns[0].channelSettings);
 }
 
 function renderVoiceField() {
@@ -618,8 +661,8 @@ function renderDrumBox() {
     headerLabel.addEventListener("click", (e) => {
       e.stopPropagation();
       setActiveTrack("drums");
-      audio.currentStep = 0;
-      updatePlayheadUI();
+      // audio.currentStep = 0; // Removed to prevent playhead reset
+      // updatePlayheadUI();
       setFocusedStep("drums", 0, "kick");
       const firstBtn = refs.stepButtons.drums.kick?.[0];
       if (firstBtn) {
@@ -739,6 +782,11 @@ function renderDrumBox() {
       const label = document.createElement("span");
       label.className = "drum-label";
       label.textContent = lane.label;
+      label.style.cursor = "pointer";
+      label.addEventListener("click", (e) => {
+          e.stopPropagation();
+          previewDrumLane(lane.key);
+      });
       row.append(label);
 
       const grid = document.createElement("div");
@@ -845,7 +893,7 @@ function renderSynthStack() {
       setActiveTrack(track.key);
       audio.currentStep = 0;
       updatePlayheadUI();
-      setFocusedStep(track.key, 0);
+      setFocusedStep(track.key, 0, null, track.mode === "arp" ? "note" : null);
       const firstBtn = refs.stepButtons.synth[track.key]?.[0];
       if (firstBtn) {
           firstBtn.focus();
@@ -1151,8 +1199,8 @@ function renderSynthControls() {
   header.style.cursor = "pointer";
   header.addEventListener("click", (e) => {
       e.stopPropagation();
-      audio.currentStep = 0;
-      updatePlayheadUI();
+      // audio.currentStep = 0; // Removed to prevent playhead reset
+      // updatePlayheadUI();
       // Focus the active track's first step if possible
       if (state.activeTrack) {
           if (state.activeTrack === "drums") {
@@ -1160,7 +1208,8 @@ function renderSynthControls() {
               const firstBtn = refs.stepButtons.drums.kick?.[0];
               if (firstBtn) firstBtn.focus();
           } else {
-              setFocusedStep(state.activeTrack, 0);
+              const isArp = state.activeTrack === "arp";
+              setFocusedStep(state.activeTrack, 0, null, isArp ? "note" : null);
               const firstBtn = refs.stepButtons.synth[state.activeTrack]?.[0];
               if (firstBtn) firstBtn.focus();
           }
@@ -1239,9 +1288,17 @@ function renderPatternControls() {
         if (i === audio.playingPatternIdx) {
             slot.classList.add("playing");
         }
+        if (i === audio.nextPatternIdx) {
+            slot.classList.add("queued");
+        }
         
         slot.addEventListener("click", () => {
             if (state.editingPatternIdx === i) return;
+
+            if (Tone.Transport.state === "started") {
+                audio.nextPatternIdx = i;
+            }
+
             // Switch editing pattern
             state.editingPatternIdx = i;
             state.pattern = state.patterns[i];
@@ -1437,7 +1494,7 @@ function renderHelp() {
     "------------------",
     "SAVE stores your song locally in the browser so you",
     "can load it later to continue working.",
-    "EXPORT saves your song as a .json file that you can",
+    "EXPORT saves your song as a .wav file that you can",
     "share with friends."
   ];
 
@@ -2494,17 +2551,32 @@ function renderVizMode6(data, width, height, metrics) {
     }).join("");
 }
 
-async function handlePlay() {
+async function handlePlay(mode = 'pattern') {
   if (!audio.ready) {
     await Tone.start();
     setupAudio();
   }
   
+  audio.playMode = mode;
+
   // Store original pattern to restore on stop
   state.originalEditingPatternIdx = state.editingPatternIdx;
 
-  // Sync playing pattern to currently edited pattern
-  audio.playingPatternIdx = state.editingPatternIdx;
+  if (mode === 'song') {
+      // Find first enabled pattern
+      let startIdx = 0;
+      for (let i = 0; i < 4; i++) {
+          if (state.patternEnable[i]) {
+              startIdx = i;
+              break;
+          }
+      }
+      audio.playingPatternIdx = startIdx;
+  } else {
+      // Sync playing pattern to currently edited pattern
+      audio.playingPatternIdx = state.editingPatternIdx;
+  }
+
   // Apply settings for this pattern immediately
   applyWaveformToVoices(state.patterns[audio.playingPatternIdx].channelSettings);
   
@@ -2552,11 +2624,16 @@ function handleStop() {
 
 function updateTransportUI() {
     const playBtn = document.getElementById("transport-play-btn");
-    if (playBtn) {
-        if (audio.playing) {
+    const playAllBtn = document.getElementById("transport-play-all-btn");
+    
+    if (playBtn) playBtn.classList.remove("playing");
+    if (playAllBtn) playAllBtn.classList.remove("playing");
+
+    if (audio.playing) {
+        if (audio.playMode === 'song' && playAllBtn) {
+            playAllBtn.classList.add("playing");
+        } else if (playBtn) {
             playBtn.classList.add("playing");
-        } else {
-            playBtn.classList.remove("playing");
         }
     }
 }
@@ -2789,11 +2866,11 @@ function createDrumVoices(bus) {
       envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 0.1 }
     }).connect(bus),
     B: new Tone.MetalSynth({
-      frequency: 4000,
-      envelope: { attack: 0.001, decay: 0.1, release: 0.3 }, // Sharper, shorter for the "shake"
+      frequency: 3200,
+      envelope: { attack: 0.001, decay: 0.1, release: 0.8 }, // Longer release for "jingle" ring
       harmonicity: 5.1,
-      modulationIndex: 32,
-      resonance: 4000,
+      modulationIndex: 64, // More complex spectrum
+      resonance: 3000,
       octaves: 1.5
     }).connect(bus)
   };
@@ -2834,14 +2911,24 @@ function advanceStep(time) {
   // Check for pattern switch at end of bar
   if (nextStep === 0) {
       let nextPatternIdx = audio.playingPatternIdx;
-      // Find next enabled pattern
-      for (let i = 1; i <= 4; i++) {
-          const checkIdx = (audio.playingPatternIdx + i) % 4;
-          if (state.patternEnable[checkIdx]) {
-              nextPatternIdx = checkIdx;
-              break;
+      
+      if (audio.nextPatternIdx !== null) {
+          nextPatternIdx = audio.nextPatternIdx;
+          audio.nextPatternIdx = null;
+      } else if (audio.playMode === 'song') {
+          // Find next enabled pattern
+          for (let i = 1; i <= 4; i++) {
+              const checkIdx = (audio.playingPatternIdx + i) % 4;
+              if (state.patternEnable[checkIdx]) {
+                  nextPatternIdx = checkIdx;
+                  break;
+              }
           }
+      } else {
+          // Loop current pattern
+          nextPatternIdx = audio.playingPatternIdx;
       }
+
       audio.playingPatternIdx = nextPatternIdx;
       
       // Apply new pattern settings to audio engine
@@ -2970,8 +3057,12 @@ function playDrum(token, time, velocity) {
       // Double trigger for "Jing-Jing" effect
       // First hit
       voice.triggerAttackRelease(duration, time);
-      // Second hit (approx 40ms later)
-      voice.triggerAttackRelease(duration, time + 0.04);
+      // Second hit (approx 60ms later)
+      try {
+        voice.triggerAttackRelease(duration, time + 0.06);
+      } catch (e) {
+        // Ignore overlap errors during rapid preview
+      }
       return;
   }
 
@@ -2998,8 +3089,15 @@ function previewSynthStep(channelKey, index) {
     typeof step.note === "number" ? step.note : getTrackDefaultNoteIndex(channelKey)
   );
   const note = noteIndexToLabel(noteIndex);
-  const velocity = velocityToGain(step.velocity || DEFAULT_STEP_VELOCITY);
+  let velocity = velocityToGain(step.velocity || DEFAULT_STEP_VELOCITY);
   
+  if (channelKey === "arp") {
+      // Boost Arp volume range (0.32-0.95 -> 0.32-1.5)
+      // v' = (v - 0.32) * 1.87 + 0.32
+      // Simplified: (v - 0.25) * 1.8 + 0.25
+      velocity = (velocity - 0.25) * 1.8 + 0.25;
+  }
+
   const trackDecay = state.pattern.channelSettings?.[channelKey]?.decay;
   const effectiveDecay = typeof trackDecay === 'number' ? trackDecay : (step.decay ?? DEFAULT_STEP_DECAY);
   const maxDecay = TRACK_MAX_DECAY[channelKey] ?? 6.0;
@@ -3076,37 +3174,57 @@ function updatePlayheadUI(activeSynthStep = audio.currentStep) {
   // Only show playhead if we are viewing the pattern that is currently playing
   const isViewingPlayingPattern = state.editingPatternIdx === audio.playingPatternIdx;
 
+  // Optimization: Use requestAnimationFrame to batch DOM updates if not already scheduled
+  // But since this is called from the Tone.js loop, it might be better to keep it synchronous but minimal.
+  // The current implementation already checks for value changes.
+  
   const drumStep = activeSynthStep % DRUM_STEPS;
-  drumLanes.forEach((lane) => {
-    refs.stepButtons.drums[lane.key]?.forEach((btn, idx) => {
-      const shouldBeActive = isViewingPlayingPattern && (idx === drumStep);
-      // Only update DOM if value changes to avoid layout thrashing
-      const currentVal = btn.dataset.playhead === "true";
-      if (currentVal !== shouldBeActive) {
-          btn.dataset.playhead = shouldBeActive;
-      }
-    });
-  });
-  synthTracks.forEach((track) => {
+  
+  // Cache references to avoid repeated lookups if possible, but refs is global.
+  
+  for (const lane of drumLanes) {
+    const buttons = refs.stepButtons.drums[lane.key];
+    if (!buttons) continue;
+    
+    // Optimization: Only touch the previous active step and the new active step
+    // Instead of iterating all buttons.
+    // But we don't track "previous active step" easily here without state.
+    // Let's stick to the iteration but make it faster.
+    
+    for (let idx = 0; idx < buttons.length; idx++) {
+        const btn = buttons[idx];
+        const shouldBeActive = isViewingPlayingPattern && (idx === drumStep);
+        // Direct DOM access is slow, but dataset access is also DOM access.
+        // We check the current value first.
+        if ((btn.dataset.playhead === "true") !== shouldBeActive) {
+            btn.dataset.playhead = shouldBeActive ? "true" : "false";
+        }
+    }
+  }
+
+  for (const track of synthTracks) {
+    const buttons = refs.stepButtons.synth[track.key];
+    if (!buttons) continue;
+
     if (track.key === "arp") {
-        refs.stepButtons.synth[track.key]?.forEach((btn, idx) => {
+        for (let idx = 0; idx < buttons.length; idx++) {
+            const btn = buttons[idx];
             const stepIndex = Math.floor(idx / 2);
             const shouldBeActive = isViewingPlayingPattern && (stepIndex === activeSynthStep);
-            const currentVal = btn.dataset.playhead === "true";
-            if (currentVal !== shouldBeActive) {
-                btn.dataset.playhead = shouldBeActive;
+            if ((btn.dataset.playhead === "true") !== shouldBeActive) {
+                btn.dataset.playhead = shouldBeActive ? "true" : "false";
             }
-        });
+        }
     } else {
-        refs.stepButtons.synth[track.key]?.forEach((btn, idx) => {
-          const shouldBeActive = isViewingPlayingPattern && (idx === activeSynthStep);
-          const currentVal = btn.dataset.playhead === "true";
-          if (currentVal !== shouldBeActive) {
-              btn.dataset.playhead = shouldBeActive;
-          }
-        });
+        for (let idx = 0; idx < buttons.length; idx++) {
+            const btn = buttons[idx];
+            const shouldBeActive = isViewingPlayingPattern && (idx === activeSynthStep);
+            if ((btn.dataset.playhead === "true") !== shouldBeActive) {
+                btn.dataset.playhead = shouldBeActive ? "true" : "false";
+            }
+        }
     }
-  });
+  }
 }
 
 async function handleSave(btn) {
@@ -3234,15 +3352,32 @@ function resetScene() {
   state.tempo = 120;
   state.swing = 0;
   state.scaleId = scaleOptions[0].id;
-  initPatterns();
+  
+  // Force reset of all patterns
+  state.patterns = [
+      buildDefaultPatternSet(),
+      buildDefaultPatternSet(),
+      buildDefaultPatternSet(),
+      buildDefaultPatternSet()
+  ];
+  
   state.patternEnable = [true, false, false, false];
   state.editingPatternIdx = 0;
+  state.pattern = state.patterns[0];
   audio.playingPatternIdx = 0;
   
   renderTransport();
   renderVoiceField();
   renderDrumBox();
   renderSynthStack();
+  
+  // Update Pattern Controls
+  const oldControls = document.getElementById("pattern-controls");
+  if (oldControls) {
+      const newControls = renderPatternControls();
+      oldControls.replaceWith(newControls);
+  }
+
   applyWaveformToVoices(state.pattern.channelSettings);
   updatePlayheadUI(0);
 }
@@ -3352,7 +3487,11 @@ function handleGlobalKeyDown(event) {
       }
       handleStop();
     } else {
-      handlePlay();
+      if (event.shiftKey) {
+          handlePlay('song');
+      } else {
+          handlePlay('pattern');
+      }
     }
     return;
   }
@@ -3799,9 +3938,11 @@ function applyKnobDrag(type, steps) {
   // If step is empty, create it with default volume
   const step = getSynthStep(focus.channel, focus.index);
   if (!step) return;
-  if ((step.velocity || 0) <= 0) {
-      setStepVelocity(focus.channel, focus.index, DEFAULT_STEP_VELOCITY);
-  }
+  
+  // REMOVED: Auto-activation of step on knob drag.
+  // if ((step.velocity || 0) <= 0) {
+  //     setStepVelocity(focus.channel, focus.index, DEFAULT_STEP_VELOCITY);
+  // }
 
   if (type === "note") {
     const semitone = getStepSemitone(step, focus.channel);
@@ -4251,8 +4392,6 @@ async function handleExportMp3() {
             window.URL.revokeObjectURL(url);
         }, 100);
 
-        alert(`EXPORT SUCCESSFUL!\nSaved as ${filename}`);
-        
         // Cleanup Audio
         audio.master.disconnect(recorder);
         recorder.dispose();

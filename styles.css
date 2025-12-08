@@ -180,6 +180,7 @@ pre, code, kbd, samp {
   grid-area: drums;
   display: flex;
   flex-direction: column;
+  padding-left: 0;
 }
 
 #info-panel {
@@ -196,6 +197,7 @@ pre, code, kbd, samp {
   display: flex;
   flex-direction: column;
   height: 100%;
+  padding-left: 0;
 }
 
 #help-panel {
@@ -227,11 +229,15 @@ pre, code, kbd, samp {
 #synth-body {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 1.25rem;
   padding-bottom: 3rem;
   height: 100%;
   border: none;
   background: transparent;
+  width: 100%;
+  box-sizing: border-box;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .demo-btn-row {
@@ -280,6 +286,8 @@ pre, code, kbd, samp {
   flex: 1;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  padding-left: 0.5rem;
 }
 
 .single-frame {
@@ -509,6 +517,9 @@ button:focus-visible {
   padding: 0.25rem 0.75rem 0.5rem;
   margin-bottom: 0;
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
+  width: 100%;
+  box-sizing: border-box;
+  margin-left: 0;
 }
 
 .track-box-bass {
@@ -600,6 +611,7 @@ button:focus-visible {
 
 .track-slider {
   -webkit-appearance: none;
+  appearance: none;
   width: 60px;
   height: 4px;
   background: var(--c64-blue);
@@ -698,8 +710,9 @@ button:focus-visible {
 }
 
 #synth-controls {
+  flex: 1;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: flex-start;
   gap: 0.25rem;
   margin-bottom: 0.25rem;
@@ -707,6 +720,8 @@ button:focus-visible {
   background: #050506;
   padding: 0.25rem 0.75rem;
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
+  box-sizing: border-box;
+  margin-left: 0;
 }
 
 .synth-header {
@@ -714,7 +729,8 @@ button:focus-visible {
   color: var(--c64-orange);
   padding: 0.25rem 0;
   white-space: nowrap;
-  margin-right: 1rem;
+  margin-right: 0;
+  width: 100%;
 }
 
 .module-title {
@@ -727,12 +743,13 @@ button:focus-visible {
 
 .knob-row {
   display: flex;
-  gap: 0.5rem;
+  gap: 1.5rem;
   flex-wrap: nowrap;
   flex: 1;
-  justify-content: center;
+  justify-content: flex-start;
+  width: 100%;
   margin-top: 0.35rem;
-  padding-left: 0.5rem; /* Shift right to center visually in box */
+  padding-left: 0;
 }
 
 .knob {
@@ -883,13 +900,9 @@ button:focus-visible {
   gap: 1rem;
   align-items: stretch;
   margin-bottom: 0.25rem;
-}
-
-#synth-controls {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+  width: 100%;
+  box-sizing: border-box;
+  padding-left: 0;
 }
 
 #pattern-controls {
@@ -902,6 +915,8 @@ button:focus-visible {
   padding: 0.25rem 0.5rem;
   background: rgba(255, 110, 240, 0.05);
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
+  box-sizing: border-box;
+  margin-right: 0;
 }
 .pattern-header {
   color: #fff;
@@ -942,6 +957,11 @@ button:focus-visible {
   border: 2px solid var(--c64-green);
   color: var(--c64-green);
   box-shadow: 0 0 8px rgba(141, 255, 123, 0.2);
+}
+
+.pattern-slot.queued {
+  border: 1px dashed var(--c64-orange);
+  color: var(--c64-orange);
 }
 
 .pattern-play-ind {
@@ -1083,8 +1103,8 @@ body.theme-bw #load-panel {
 /* Theme Controls Fixed Position */
 #theme-controls-fixed {
   position: absolute;
-  bottom: 1rem;
-  right: 1rem;
+  bottom: 2.5rem;
+  right: 2.5rem;
   display: flex;
   gap: 0.5rem;
   align-items: center;

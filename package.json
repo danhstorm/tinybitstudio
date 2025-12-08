@@ -1,7 +1,7 @@
 {
-  "name": "hitmaker-server",
+  "name": "tiny-bit-studio",
   "version": "1.0.0",
-  "description": "Self-contained C64 Sequencer Server",
+  "description": "Retro C64 Sequencer",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

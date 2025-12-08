@@ -14,7 +14,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 }
 
 // Setup Database
-const DB_PATH = path.join(__dirname, 'hitmaker.db');
+const DB_PATH = path.join(__dirname, 'tinybitstudio.db');
 const db = new sqlite3.Database(DB_PATH);
 
 db.serialize(() => {
