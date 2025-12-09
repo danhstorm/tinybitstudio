@@ -148,7 +148,11 @@ document.addEventListener("DOMContentLoaded", () => {
     initVisualizerBody();
     bindGlobalKeys();
     startVisualizerTicker();
-    loadUserScene(state.currentUser, { silent: true });
+    
+    const hasSavedData = loadUserScene(state.currentUser, { silent: true });
+    if (!hasSavedData) {
+        loadDemoSong(1);
+    }
     
     // Initialize focus on the first drum step
     if (!state.focusedStep) {
@@ -636,6 +640,10 @@ function renderDrumBox() {
     if (!state.pattern.channelSettings.drums) state.pattern.channelSettings.drums = { muted: false };
 
     refs.drumBody.innerHTML = "";
+    
+    // Clear stored buttons
+    refs.stepButtons.drums = {};
+    
     const fragment = document.createDocumentFragment();
   
     // Make the drum body clickable to activate
@@ -706,14 +714,15 @@ function renderDrumBox() {
     delayTimeBtn.style.color = "var(--c64-purple)";
     
     const delayOptions = [
-        { label: "1/2", value: "2n" },
-        { label: "3/3", value: "2t" }, // Using 3/3 label as requested for triplet
-        { label: "4/4", value: "1m" }  // Using 4/4 label for 1 bar (measure)
+        { label: "1/4", value: "4n" },
+        { label: "1/3", value: "2t" },
+        { label: "3/8", value: "4n." },
+        { label: "1/2", value: "2n" }
     ];
 
     // Ensure default is valid
     if (!state.pattern.channelSettings.drums.delayTime) {
-        state.pattern.channelSettings.drums.delayTime = "2t"; // Default to 3/3
+        state.pattern.channelSettings.drums.delayTime = "2t"; // Default to 1/3
     }
 
     const updateDelayBtn = () => {
@@ -852,6 +861,14 @@ function renderSynthStack() {
   }
 
   refs.synthBody.innerHTML = "";
+  
+  // Clear stored buttons to prevent memory leaks and ghost updates
+  refs.stepButtons.synth = {
+      bass: [],
+      lead: [],
+      arp: []
+  };
+
   const fragment = document.createDocumentFragment();
   
   const topRow = document.createElement("div");
@@ -2843,13 +2860,9 @@ function createDrumVoices(bus) {
       noise: { type: "white" },
       envelope: { attack: 0.001, decay: 0.25, sustain: 0, release: 0.05 } // Slightly shorter decay
     }).connect(bus),
-    C: new Tone.MetalSynth({
-      frequency: 1400,
-      envelope: { attack: 0.005, decay: 0.35, release: 0.25 },
-      harmonicity: 5,
-      modulationIndex: 16,
-      resonance: 800,
-      octaves: 1.5
+    C: new Tone.NoiseSynth({
+      noise: { type: "white" },
+      envelope: { attack: 0.001, decay: 0.3, sustain: 0, release: 0.2 }
     }).connect(bus),
     H: new Tone.MetalSynth({
       frequency: 200,
@@ -2867,11 +2880,12 @@ function createDrumVoices(bus) {
     }).connect(bus),
     B: new Tone.MetalSynth({
       frequency: 3200,
-      envelope: { attack: 0.001, decay: 0.1, release: 0.8 }, // Longer release for "jingle" ring
+      envelope: { attack: 0.001, decay: 0.1, release: 2.5 }, // Increased release for more "reverb"
       harmonicity: 5.1,
       modulationIndex: 64, // More complex spectrum
       resonance: 3000,
-      octaves: 1.5
+      octaves: 1.5,
+      volume: -5 // Lowered volume
     }).connect(bus)
   };
 }
@@ -3056,17 +3070,17 @@ function playDrum(token, time, velocity) {
   if (token === "B") {
       // Double trigger for "Jing-Jing" effect
       // First hit
-      voice.triggerAttackRelease(duration, time);
-      // Second hit (approx 60ms later)
+      voice.triggerAttackRelease(pitch, duration, time);
+      // Second hit (approx 120ms later)
       try {
-        voice.triggerAttackRelease(duration, time + 0.06);
+        voice.triggerAttackRelease(pitch, duration, time + 0.12);
       } catch (e) {
         // Ignore overlap errors during rapid preview
       }
       return;
   }
 
-  if (voice instanceof Tone.NoiseSynth || voice instanceof Tone.MetalSynth) {
+  if (voice instanceof Tone.NoiseSynth) {
     voice.triggerAttackRelease(duration, time);
   } else {
     voice.triggerAttackRelease(pitch, duration, time, velocity);
@@ -3132,7 +3146,8 @@ function advanceArp(time) {
   // Update LFO intensity based on current step's mod value
   // We use the main sequencer step to determine the mod value
   const step = state.pattern.arp[audio.currentStep];
-  if (step && audio.arpFilterLfo) {
+  // Only update LFO if the step is active (has velocity/level)
+  if (step && (step.velocity || step.level || 0) > 0 && audio.arpFilterLfo) {
       const mod = step.mod || 0;
       const intensity = mod / 100;
       const base = 200;
@@ -3171,9 +3186,9 @@ function advanceArp(time) {
 }
 
 function updatePlayheadUI(activeSynthStep = audio.currentStep) {
-  // Only show playhead if we are viewing the pattern that is currently playing
-  const isViewingPlayingPattern = state.editingPatternIdx === audio.playingPatternIdx;
-
+  // Show playhead on the currently viewed pattern, regardless of which pattern is playing audio.
+  // This allows editing a pattern while another plays, with the playhead serving as a rhythmic guide.
+  
   // Optimization: Use requestAnimationFrame to batch DOM updates if not already scheduled
   // But since this is called from the Tone.js loop, it might be better to keep it synchronous but minimal.
   // The current implementation already checks for value changes.
@@ -3193,7 +3208,7 @@ function updatePlayheadUI(activeSynthStep = audio.currentStep) {
     
     for (let idx = 0; idx < buttons.length; idx++) {
         const btn = buttons[idx];
-        const shouldBeActive = isViewingPlayingPattern && (idx === drumStep);
+        const shouldBeActive = (idx === drumStep);
         // Direct DOM access is slow, but dataset access is also DOM access.
         // We check the current value first.
         if ((btn.dataset.playhead === "true") !== shouldBeActive) {
@@ -3210,7 +3225,7 @@ function updatePlayheadUI(activeSynthStep = audio.currentStep) {
         for (let idx = 0; idx < buttons.length; idx++) {
             const btn = buttons[idx];
             const stepIndex = Math.floor(idx / 2);
-            const shouldBeActive = isViewingPlayingPattern && (stepIndex === activeSynthStep);
+            const shouldBeActive = (stepIndex === activeSynthStep);
             if ((btn.dataset.playhead === "true") !== shouldBeActive) {
                 btn.dataset.playhead = shouldBeActive ? "true" : "false";
             }
@@ -3218,7 +3233,7 @@ function updatePlayheadUI(activeSynthStep = audio.currentStep) {
     } else {
         for (let idx = 0; idx < buttons.length; idx++) {
             const btn = buttons[idx];
-            const shouldBeActive = isViewingPlayingPattern && (idx === activeSynthStep);
+            const shouldBeActive = (idx === activeSynthStep);
             if ((btn.dataset.playhead === "true") !== shouldBeActive) {
                 btn.dataset.playhead = shouldBeActive ? "true" : "false";
             }
@@ -3273,6 +3288,8 @@ function loadUserScene(user, { slot = 0, silent = false } = {}) {
   renderArtistMenu();
   renderIntro();
   renderVoiceField();
+  
+  return !!snapshot;
 }
 
 function applySnapshot(snapshot) {
@@ -3400,9 +3417,22 @@ function bindGlobalKeys() {
 }
 
 function handleGlobalKeyDown(event) {
-  // Ignore if typing in an input field
-  if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA") {
-      return;
+  // Ignore if typing in an input field, UNLESS it's Enter on a non-text input (like a slider)
+  const isInput = event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA";
+  if (isInput) {
+      if (event.key === "Enter") {
+          const isTextInput = event.target.type === "text" || event.target.tagName === "TEXTAREA";
+          if (isTextInput) {
+              // If in text input, Enter confirms and exits (blurs)
+              event.preventDefault();
+              event.target.blur();
+              return;
+          }
+          // If in slider/button, let Enter pass through to trigger Play
+      } else {
+          // Block all other keys while in input
+          return;
+      }
   }
 
   // Undo / Redo
