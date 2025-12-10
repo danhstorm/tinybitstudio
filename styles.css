@@ -77,7 +77,7 @@ body {
 #console {
   width: 100%;
   height: 100%;
-  background: #000;
+  background: rgba(0, 0, 0, 0.65); /* Semi-opaque to let body gradient through */
   box-shadow: 
     4px 4px 0px 0px #000,
     10px 10px 0px 0px var(--c64-shadow),
@@ -86,21 +86,12 @@ body {
   padding: 0.5rem 0.75rem 0.75rem;
   position: relative;
   overflow: hidden;
-  /* CRT Bulge & Fisheye Effect */
-  /* border-radius removed as requested */
-  /* Vignette */
-  background: radial-gradient(circle at center, #000 60%, #111 100%);
 }
 
 /* Global Ghosting Effect applied to content */
 #console {
   /* Use the SVG filter injected by JS */
   filter: url(#ghost-filter);
-}
-
-#console > * {
-  /* Removed individual drop-shadow */
-  filter: none;
 }
 
 /* Global CRT Overlay */
@@ -189,7 +180,8 @@ pre, code, kbd, samp {
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: fit-content;
+  align-self: start;
 }
 
 #synth-panel {
@@ -243,8 +235,10 @@ pre, code, kbd, samp {
 
 .demo-btn-row {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.2rem;
   margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+
   width: 100%;
 }
 
@@ -277,8 +271,8 @@ pre, code, kbd, samp {
 }
 
 .panel-body {
-  background: #050506;
-  padding: 0.75rem 1rem;
+  background: transparent;
+  padding: 0.5rem 0.5rem;
   font-size: 0.9rem;
   line-height: 1.2rem;
   min-height: 80px;
@@ -297,48 +291,18 @@ pre, code, kbd, samp {
 }
 
 #visualizer-shell {
-  margin-top: 1.5rem;
-  margin-bottom: 0.5rem;
-  padding: 0.35rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0px;
+  padding: 0rem;
   align-self: stretch;
   display: flex;
   justify-content: center;
   box-shadow: none !important;
   position: relative;
-  overflow: hidden;
-  flex: 1;
-  min-height: 200px;
-}
-
-#theme-controls {
-  position: absolute;
-  bottom: 0.5rem;
-  right: 0.5rem;
-  display: flex;
-  gap: 0.5rem;
-  z-index: 100;
-}
-
-.theme-btn {
-  background: var(--c64-blue);
-  color: var(--c64-light-blue);
-  border: 2px solid var(--c64-light-blue);
-  padding: 0.2rem 0.5rem;
-  font-family: "C64 Pro Mono", monospace;
-  font-size: 0.7rem;
-  cursor: pointer;
-  box-shadow: 2px 2px 0px 0px rgba(0,0,0,0.5);
-}
-
-.theme-btn:active {
-  transform: translate(1px, 1px);
-  box-shadow: 1px 1px 0px 0px rgba(0,0,0,0.5);
-}
-
-.demo-btn {
-  flex: 1;
-  min-width: 80px;
-  text-align: center;
+  overflow: visible;
+  flex: 0 0 auto;
+  height: auto; /* Allow growth */
+  width: 100%;
 }
 
 #visualizer-body {
@@ -347,24 +311,19 @@ pre, code, kbd, samp {
   justify-content: center;
   align-items: center;
   white-space: pre;
-  font-size: 0.75rem;
-  line-height: 0.85rem;
+  font-size: 0.85rem;
+  line-height: 0.95rem;
   color: var(--c64-purple);
-  width: 100%;
-  max-width: 100%;
-  height: 100%; /* Fill the shell */
-  overflow: hidden;
-  text-align: center; /* Center horizontally */
-  margin-left: auto;
-  margin-right: auto;
+  width: 100%; /* Match container width */
+  min-height: 23rem; /* Prevent vertical collapse (24 lines * 0.95) */
+  height: auto;
+  margin: 0 auto; /* Center horizontally */
   border: 2px solid var(--c64-purple);
   padding: 0.25rem;
   position: relative;
+  box-sizing: border-box;
+  background: transparent;
 }
-
-/* Removed local glitch effects */
-
-
 
 .viz-row {
   height: 0.85rem; /* Match line-height */
@@ -385,14 +344,16 @@ pre, code, kbd, samp {
 #info-body {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  height: 100%;
+  gap: 0.25rem; /* Reduced gap from 0.5rem */
+  height: auto;
+  flex: 0 0 auto;
   border-color: var(--c64-cyan);
   position: relative;
 }
 
 #intro-field {
   color: #fff;
+  margin-top: 0.2rem;
   font-size: 0.9rem;
   letter-spacing: 0.2em;
   font-weight: bold;
@@ -426,6 +387,7 @@ pre, code, kbd, samp {
 
 .transport-row {
   justify-content: flex-start;
+  padding: 0.2rem 0;
 }
 
 .title-row {
@@ -453,7 +415,7 @@ pre, code, kbd, samp {
   width: 100%;
   height: 2px;
   background: var(--c64-cyan);
-  margin: 0.6rem 0;
+  margin: 0.3rem 0;
   border: none;
 }
 
@@ -530,19 +492,19 @@ button:focus-visible {
 
 .track-box-bass {
   border: 2px solid var(--c64-orange);
-  background: rgba(110, 249, 255, 0.05);
+  background: transparent;
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
 }
 
 .track-box-lead {
   border: 2px solid var(--c64-orange);
-  background: rgba(110, 249, 255, 0.05);
+  background: transparent;
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
 }
 
 .track-box-arp {
   border: 2px solid var(--c64-orange);
-  background: rgba(110, 249, 255, 0.05);
+  background: transparent;
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
 }
 
@@ -723,7 +685,7 @@ button:focus-visible {
   gap: 0.25rem;
   margin-bottom: 0.25rem;
   border: 2px solid var(--c64-orange);
-  background: #050506;
+  background: transparent;
   padding: 0.25rem 0.75rem;
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
   box-sizing: border-box;
@@ -919,7 +881,7 @@ button:focus-visible {
   gap: 0.25rem;
   border: 2px solid var(--c64-cyan);
   padding: 0.25rem 0.5rem;
-  background: rgba(255, 110, 240, 0.05);
+  background: transparent;
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
   box-sizing: border-box;
   margin-right: 0;
@@ -1025,8 +987,8 @@ button:focus-visible {
 }
 
 #visualizer-controls {
-  margin-top: auto;
-  padding: 0.25rem;
+  margin-top: -0.8rem;
+  padding: -0.25rem;
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
@@ -1037,7 +999,7 @@ button:focus-visible {
   font-weight: bold;
   font-size: 0.9rem;
   text-align: left;
-  padding-left: 0.25rem;
+  padding-left: 0rem;
   margin-bottom: 0.1rem;
 }
 
@@ -1108,19 +1070,55 @@ body.theme-bw #load-panel {
 
 /* Theme Controls Fixed Position */
 #theme-controls-fixed {
-  position: absolute;
-  bottom: 1.5rem;
-  right: 2.5rem;
+  /* Moved inside synth-panel, so relative positioning */
+  position: relative;
+  margin-top: -1.2rem; /* Reduced margin */
   display: flex;
-  gap: 0.5rem;
+  gap: 0.8rem;
   align-items: center;
-  z-index: 2000;
+  justify-content: flex-start; /* Align left */
+  z-index: 100;
+  background: transparent;
+  padding: 0.25rem 0;
+  pointer-events: auto; /* Ensure clickable */
+  width: 100%; /* Ensure full width for alignment */
 }
 
 .theme-label {
   font-size: 0.6rem;
   color: var(--c64-cyan);
   margin-right: 0.25rem;
+  margin-left: auto; /* Push to right */
+}
+
+.theme-spacer {
+  width: 1rem;
+  height: 1rem;
+  border-right: 1px solid var(--c64-shadow); /* Visual separator */
+}
+
+.theme-transport-btn {
+  background: transparent;
+  border: none;
+  color: var(--c64-purple);
+  font-size: 1.4rem; /* Larger symbols */
+  cursor: pointer;
+  padding: 0 0.4rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-transport-btn:hover {
+  /* No hover effect */
+}
+
+.theme-transport-btn:active,
+.theme-transport-btn.playing {
+  color: var(--c64-green);
+  text-shadow: 0 0 8px var(--c64-green);
+  transform: scale(0.95);
 }
 
 .theme-btn-graphic {

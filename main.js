@@ -305,6 +305,7 @@ function renderTransport() {
         row.style.gap = "0.5ch";
         row.style.fontSize = "0.8rem";
         row.style.width = "100%"; // Ensure row takes full width
+        row.style.paddingRight = "0"; // Reset padding
         
         const labelSpan = document.createElement("span");
         // Use pre-wrap to preserve spaces for alignment
@@ -322,7 +323,7 @@ function renderTransport() {
         input.maxLength = 24;
         input.className = "bare-input";
         input.style.flex = "1"; // Take available space
-        input.style.marginRight = "2ch";
+        input.style.minWidth = "0"; // Allow shrinking
         input.style.textAlign = "left";
         input.style.color = "var(--c64-orange)"; 
         input.addEventListener("input", (e) => {
@@ -332,6 +333,9 @@ function renderTransport() {
         const bracketRight = document.createElement("span");
         bracketRight.textContent = "]";
         bracketRight.style.color = "var(--c64-cyan)";
+        
+        row.append(labelSpan, bracketLeft, input, bracketRight);
+        return row;
         
         row.append(labelSpan, bracketLeft, input, bracketRight);
         return row;
@@ -517,7 +521,8 @@ function renderTransport() {
     swingRow.append(decSwing, swingVal, incSwing);
 
     // No divider between Tempo and Swing to save space
-    refs.transportBody.append(titleRow, createDivider(), fileRow, createDivider(), transportRow, createDivider(), tempoRow, swingRow, createDivider(), demoRow);
+    // Removed divider before demoRow to save space
+    refs.transportBody.append(titleRow, createDivider(), fileRow, createDivider(), transportRow, createDivider(), tempoRow, swingRow, createDivider(), demoRow, createDivider());
   } catch (e) {
     console.error("Render Transport Error:", e);
     refs.transportBody.innerHTML += `<div style="color:red">Transport Error: ${e.message}</div>`;
@@ -549,9 +554,10 @@ function loadDemoSong(index) {
 
     state.tempo = songData.tempo || 120;
     state.swing = songData.swing || 0;
-    state.trackName = `DEMO SONG ${index}`;
+    state.trackName = songData.trackName || `DEMO SONG ${index}`;
     state.currentUser = songData.currentUser || "SYSTEM";
     state.scaleId = songData.scaleId || "cmaj";
+    state.visualizerMode = songData.visualizerMode || 5;
     
     if (songData.patternEnable) {
         state.patternEnable = [...songData.patternEnable];
@@ -559,9 +565,14 @@ function loadDemoSong(index) {
 
     state.pattern = state.patterns[state.editingPatternIdx];
 
+    // Update Audio Engine
+    Tone.Transport.bpm.value = state.tempo;
+    Tone.Transport.swing = state.swing / 100;
+
     renderTransport();
     renderDrumBox();
     renderSynthStack();
+    renderVisualizerControls();
     
     const oldControls = document.getElementById("pattern-controls");
     if (oldControls) {
@@ -792,6 +803,16 @@ function renderDrumBox() {
         }
     });
 
+    // Prevent focus stealing
+    delaySlider.addEventListener("change", () => {
+        delaySlider.blur();
+        focusStoredStepButton();
+    });
+    delaySlider.addEventListener("mouseup", () => {
+        delaySlider.blur();
+        focusStoredStepButton();
+    });
+
     delaySliderContainer.append(delayLabel, delaySlider);
     delayContainer.append(delayTimeBtn, delaySliderContainer);
     headerRow.append(delayContainer);
@@ -946,20 +967,10 @@ function renderSynthStack() {
     headerLeft.style.alignItems = "center";
     headerLeft.append(labelSpan, muteBtn);
 
-    const controlsDiv = document.createElement("div");
-    controlsDiv.className = "track-controls";
-
     // Waveform Selector (For all tracks including Arp)
     const waveGroup = document.createElement("div");
     waveGroup.className = "track-control-group";
     
-    // Vertical line separator
-    const sep = document.createElement("span");
-    sep.textContent = "|";
-    sep.style.color = "var(--c64-cyan)";
-    sep.style.marginRight = "0.5rem";
-    waveGroup.append(sep);
-
     // Wave Label
     const waveLabel = document.createElement("span");
     waveLabel.textContent = "WAVE:";
@@ -1001,16 +1012,11 @@ function renderSynthStack() {
         });
         waveGroup.append(btn);
     });
-    controlsDiv.append(waveGroup);
-
-    const separator = document.createElement("span");
-    separator.textContent = "|";
-    separator.style.color = "var(--c64-cyan)";
-    separator.style.margin = "0 0.5rem";
-    controlsDiv.append(separator);
 
     const decayGroup = document.createElement("div");
     decayGroup.className = "track-control-group";
+    decayGroup.style.paddingRight = "1rem";
+    
     const decayLabel = document.createElement("span");
     decayLabel.textContent = "DECAY:";
     
@@ -1036,11 +1042,20 @@ function renderSynthStack() {
         const artEl = wrapper.querySelector(".track-art");
         if (artEl) artEl.textContent = generatePetsciiArt(track.key, state.pattern.channelSettings[track.key]);
     });
+
+    // Prevent focus stealing
+    decaySlider.addEventListener("change", () => {
+        decaySlider.blur();
+        focusStoredStepButton();
+    });
+    decaySlider.addEventListener("mouseup", () => {
+        decaySlider.blur();
+        focusStoredStepButton();
+    });
     
     decayGroup.append(decayLabel, decaySlider);
-    controlsDiv.append(decayGroup);
 
-    header.append(headerLeft, controlsDiv);
+    header.append(headerLeft, waveGroup, decayGroup);
     
     // Art Row - Under the title/controls
     const bodyRow = document.createElement("div");
@@ -1205,6 +1220,10 @@ function renderSynthStack() {
   bottomRow.append(synthControls, patternControls);
   fragment.append(bottomRow);
   
+  // Render Theme Controls (Play/Stop/Color)
+  const themeControls = renderThemeControls();
+  fragment.append(themeControls);
+
   refs.synthBody.append(fragment);
   
   // Rebuild focus grid after synths are rendered
@@ -1213,6 +1232,53 @@ function renderSynthStack() {
     console.error("Render error:", e);
     refs.synthBody.innerHTML += `<div style="color:red">Error: ${e.message}</div>`;
   }
+}
+
+function renderThemeControls() {
+    const container = document.createElement("div");
+    container.id = "theme-controls-fixed";
+    
+    const playBtn = document.createElement("button");
+    playBtn.id = "global-play-btn";
+    playBtn.className = "theme-transport-btn";
+    playBtn.title = "Play";
+    playBtn.textContent = "▶";
+    playBtn.addEventListener("click", () => {
+        handleStop();
+        handlePlay('song');
+    });
+    
+    const stopBtn = document.createElement("button");
+    stopBtn.id = "global-stop-btn";
+    stopBtn.className = "theme-transport-btn";
+    stopBtn.title = "Stop";
+    stopBtn.textContent = "■";
+    stopBtn.addEventListener("click", () => {
+        handleStop();
+    });
+    
+    const label = document.createElement("span");
+    label.className = "theme-label";
+    label.textContent = "color:";
+    
+    const stdBtn = document.createElement("div");
+    stdBtn.className = "theme-btn-graphic";
+    stdBtn.id = "theme-std-graphic";
+    stdBtn.title = "Standard Theme";
+    stdBtn.addEventListener("click", () => {
+        document.body.classList.remove("theme-bw");
+    });
+    
+    const bwBtn = document.createElement("div");
+    bwBtn.className = "theme-btn-graphic";
+    bwBtn.id = "theme-bw-graphic";
+    bwBtn.title = "B&W Theme";
+    bwBtn.addEventListener("click", () => {
+        document.body.classList.add("theme-bw");
+    });
+    
+    container.append(playBtn, stopBtn, label, stdBtn, bwBtn);
+    return container;
 }
 
 function renderSynthControls() {
@@ -1497,10 +1563,19 @@ function renderHelp() {
   if (!refs.helpBody) return;
   refs.helpBody.innerHTML = "";
 
+  // Header with Close Button
+  const header = document.createElement("div");
+  header.className = "overlay-header";
+  
+  const title = document.createElement("span");
+  title.textContent = "HELP & COMMANDS";
+  
+  const closeBtn = createButton("[close]", "transport-btn", () => toggleHelp());
+  
+  header.append(title, closeBtn);
+  refs.helpBody.append(header);
+
   const content = [
-    "HELP",
-    "====",
-    "",
     "COMMANDS & SHORTCUTS",
     "--------------------",
     "ARROWS      :: Move cursor",
@@ -1533,11 +1608,6 @@ function renderHelp() {
   pre.style.margin = "0";
   pre.textContent = content.join("\n");
   refs.helpBody.append(pre);
-
-  const closeBtn = createButton("[CLOSE HELP]", "transport-btn", () => toggleHelp());
-  closeBtn.style.marginTop = "1rem";
-  closeBtn.style.display = "block";
-  refs.helpBody.append(closeBtn);
 }
 
 function openSlotOverlay() {
@@ -2171,6 +2241,17 @@ function initGlyphDivider() {
 function updateGlyphDivider() {
     const divider = document.getElementById("glyph-divider");
     if (!divider) return;
+
+    // Check visibility of overlays
+    const helpVisible = refs.helpPanel && refs.helpPanel.style.display !== "none";
+    const loadVisible = isOverlayVisible();
+    
+    if (helpVisible || loadVisible) {
+        divider.style.visibility = "hidden";
+        return;
+    } else {
+        divider.style.visibility = "visible";
+    }
     
     // Enforce fixed width state
     if (glyphState.length !== GLYPH_WIDTH) {
@@ -2423,7 +2504,7 @@ function renderVizMode1(data, width, height) {
     const chars = ["●", "○", "■", "□", "◆", "◇", "▲", "▼", "◀", "▶", "▄", "▀", "█", "░", "▒", "▓"];
     for (let x = 0; x < width; x += 1) {
       const idx = Math.floor((x / width) * data.length);
-      const sample = (data[idx] || 0) * 0.7; // Reduce intensity by scaling down amplitude
+      const sample = (data[idx] || 0) * 0.4; // Reduce intensity by scaling down amplitude
       const norm = Math.max(Math.min(sample, 1), -1);
       const y = Math.floor(((norm + 1) / 2) * (height - 1));
       const row = height - 1 - y;
@@ -2454,7 +2535,7 @@ function renderVizMode2(data, width, height) {
     for (let i = 0; i < numBars; i++) {
         const dataIdx = Math.floor((i / numBars) * data.length);
         // Scale down to prevent clipping and keep peaks lower
-        const val = Math.abs(data[dataIdx]) * 0.8; 
+        const val = Math.abs(data[dataIdx]) * 0.5; 
         let targetHeight = Math.floor(val * height);
         
         // Smoothing / Decay logic
@@ -2497,7 +2578,7 @@ function renderVizMode3(data, width, height, metrics) {
     const cy = (height - 1) / 2;
     
     // Use RMS for radius
-    const radius = Math.floor(metrics.rms * Math.min(width, height) * 1.5);
+    const radius = Math.floor(metrics.rms * Math.min(width, height) * 0.8);
     
     // Burst logic on silence
     if (!renderVizMode3.lastRms) renderVizMode3.lastRms = 0;
@@ -2560,12 +2641,11 @@ function renderVizMode4(data, width, height, metrics) {
 
     // Increased sensitivity: spawn more easily
     let spawnCount = 0;
-    if (maxVal > 0.2) spawnCount = 3;
-    else if (maxVal > 0.1) spawnCount = 2;
-    else if (maxVal > 0.02) spawnCount = 1;
+    if (maxVal > 0.4) spawnCount = 2;
+    else if (maxVal > 0.2) spawnCount = 1;
 
-    // Always a small chance to spawn background noise
-    if (Math.random() > 0.95) spawnCount++;
+    // Very rare background noise
+    if (Math.random() > 0.99) spawnCount++;
 
     for(let k=0; k<spawnCount; k++) {
         const symbols = ["░", "▒", "▓", "█", "▄", "▀", "■", "▌", "▐", "▖", "▗", "▘", "▙", "▚", "▛", "▜", "▝", "▞", "▟"];
@@ -2573,15 +2653,15 @@ function renderVizMode4(data, width, height, metrics) {
         
         // Shape logic based on ZCR (pitch)
         let w, h;
-        const baseSize = 2 + Math.floor(maxVal * 10); // Volume affects overall scale
+        const baseSize = 1 + Math.floor(maxVal * 4); // Volume affects overall scale
 
         if (zcr > 0.3) {
             // High pitch: Tall and thin
             w = Math.max(1, Math.floor(baseSize * 0.5));
-            h = Math.max(2, Math.floor(baseSize * 2));
+            h = Math.max(1, Math.floor(baseSize * 1.5));
         } else if (zcr < 0.1) {
             // Low pitch: Wide and short
-            w = Math.max(2, Math.floor(baseSize * 2));
+            w = Math.max(1, Math.floor(baseSize * 1.5));
             h = Math.max(1, Math.floor(baseSize * 0.5));
         } else {
             // Mid pitch: Boxy
@@ -2590,8 +2670,8 @@ function renderVizMode4(data, width, height, metrics) {
         }
 
         // Randomize slightly
-        w += Math.floor(Math.random() * 3);
-        h += Math.floor(Math.random() * 3);
+        w += Math.floor(Math.random() * 2);
+        h += Math.floor(Math.random() * 2);
 
         const x = Math.floor(Math.random() * (width - w));
         const y = Math.floor(Math.random() * (height - h));
@@ -2601,7 +2681,7 @@ function renderVizMode4(data, width, height, metrics) {
         const colorIdx = safeColors[Math.floor(Math.random() * safeColors.length)];
         
         // Opacity
-        const opacity = Math.min(1, 0.5 + maxVal * 2);
+        const opacity = Math.min(1, 0.3 + maxVal * 1.5);
         
         particles.push({
             x, y, w, h, char, life: 1.0, colorIdx, opacity
@@ -2610,7 +2690,7 @@ function renderVizMode4(data, width, height, metrics) {
     
     // Update particles
     for (let i = particles.length - 1; i >= 0; i--) {
-        particles[i].life -= 0.04; // Slightly faster decay
+        particles[i].life -= 0.08; // Faster decay
         if (particles[i].life <= 0) {
             particles.splice(i, 1);
         }
@@ -2667,7 +2747,7 @@ function renderVizMode5(data, width, height) {
         const val = Math.abs(data[idx]); // Use absolute value for size
         
         // Calculate height of the block based on amplitude
-        const blockHeight = Math.floor(val * height * 0.8); 
+        const blockHeight = Math.floor(val * height * 0.5); 
         
         if (blockHeight > 0) {
             const startY = Math.max(0, cy - Math.floor(blockHeight / 2));
@@ -2700,8 +2780,8 @@ function renderVizMode6(data, width, height, metrics) {
         const char = glyphs[Math.floor(Math.random() * glyphs.length)];
         
         // Spawn a ring of particles
-        const count = 16 + Math.floor(maxVal * 30);
-        const speed = 0.2 + maxVal * 1.0; // Slower movement
+        const count = 20 + Math.floor(maxVal * 40);
+        const speed = 0.3 + maxVal * 1.2; // Slower movement
         const rotation = (Math.random() - 0.5) * 0.1; // Slower rotation
         
         for(let i=0; i<count; i++) {
@@ -2853,11 +2933,15 @@ function handleStop() {
 function updateTransportUI() {
     const playBtn = document.getElementById("transport-play-btn");
     const playAllBtn = document.getElementById("transport-play-all-btn");
+    const globalPlayBtn = document.getElementById("global-play-btn");
     
     if (playBtn) playBtn.classList.remove("playing");
     if (playAllBtn) playAllBtn.classList.remove("playing");
+    if (globalPlayBtn) globalPlayBtn.classList.remove("playing");
 
     if (audio.playing) {
+        if (globalPlayBtn) globalPlayBtn.classList.add("playing");
+        
         if (audio.playMode === 'song' && playAllBtn) {
             playAllBtn.classList.add("playing");
         } else if (playBtn) {
@@ -3333,7 +3417,18 @@ function previewSynthStep(channelKey, index) {
   withAudioReady(() => {
     const time = Tone.now();
     if (channelKey === "arp") {
-      audio.arpSynth?.triggerAttackRelease(note, duration, time, velocity);
+      if (audio.arpSynth) {
+          // Play a quick arpeggio burst to simulate the effect
+          const rootMidi = Tone.Frequency(note).toMidi();
+          const chordOffsets = [0, 4, 7]; // Major chord
+          const arpSpeed = Tone.Time(ARP_DURATION).toSeconds();
+          
+          chordOffsets.forEach((offset, i) => {
+              const noteName = Tone.Frequency(rootMidi + offset, "midi").toNote();
+              const noteTime = time + (i * arpSpeed);
+              audio.arpSynth.triggerAttackRelease(noteName, duration, noteTime, velocity);
+          });
+      }
       return;
     }
     const voice = audio.synthVoices[channelKey];
@@ -3670,9 +3765,8 @@ function handleGlobalKeyDown(event) {
           event.preventDefault();
           const { channel, index, lane, subtype } = state.focusedStep;
           
-          pushToHistory();
-
           if (channel === "drums" && lane) {
+              pushToHistory();
               state.pattern.drums[lane][index] = 0;
               // Update UI
               const btn = refs.stepButtons.drums[lane][index];
@@ -3680,30 +3774,18 @@ function handleGlobalKeyDown(event) {
                   btn.dataset.level = "0";
                   btn.innerHTML = `<span class="btn-level">${LEVEL_SYMBOLS[0]}</span>`;
               }
-          } else if (channel === "arp") {
-              const step = state.pattern.arp[index];
-              if (step) {
-                  step.note = null;
-                  step.velocity = 0;
-                  step.chordId = null;
-                  const btnNote = refs.stepButtons.synth.arp[index * 2];
-                  const btnType = refs.stepButtons.synth.arp[index * 2 + 1];
-                  if (btnNote && btnType) renderArpButtons(btnNote, btnType, index);
-              }
+              notifyStateChange();
           } else {
-              const step = state.pattern[channel][index];
-              if (step) {
-                  step.velocity = 0;
-                  step.note = null;
-                  step.degree = null;
-                  step.direction = 0;
-                  step.decay = DEFAULT_STEP_DECAY;
-                  step.mod = 0;
-                  renderSynthButtonContent(refs.stepButtons.synth[channel][index], channel, index);
+              // Synth / Arp
+              let step;
+              if (channel === "arp") step = state.pattern.arp[index];
+              else step = state.pattern[channel][index];
+              
+              // Only toggle if it's active (velocity > 0)
+              if (step && (step.velocity || 0) > 0) {
+                  toggleSynthStep(channel, index);
               }
           }
-          updateKnobDisplays();
-          notifyStateChange();
       }
       return;
   }
@@ -3896,18 +3978,27 @@ function playActiveTrackNote(spec) {
       const maxDecay = TRACK_MAX_DECAY.arp ?? 2.0;
       const duration = decayToSeconds(trackDecay, maxDecay);
       
-      // If we want to play the actual Arp pattern (chord), we'd need to trigger the Arp logic.
-      // But usually "playing the keyboard" on an Arp track just plays the synth voice with the Arp settings.
-      // However, the user said "play it just like it is with the current decay setting and arpeggiator".
-      // If they mean the arpeggiator pattern, that's complex because a single key press is just one note.
-      // Usually, playing a key on an Arp track plays that note using the Arp's synth voice.
-      // Let's ensure we use the correct duration/decay.
-      
-      // Also ensure the waveform is correct (it should be handled by applyWaveformToVoices, but let's be sure)
-      // audio.arpVoice is the synth.
-      
-      audio.arpVoice.envelope.release = duration;
-      audio.arpVoice.triggerAttackRelease(note, duration, time, velocity);
+      // Play a quick arpeggio burst to simulate the effect
+      // Chord: Root, +4 (Maj 3rd), +7 (5th)
+      // We use the arpSynth
+      if (audio.arpSynth) {
+          const rootMidi = Tone.Frequency(note).toMidi();
+          const chordOffsets = [0, 4, 7]; // Major chord
+          const arpSpeed = Tone.Time(ARP_DURATION).toSeconds();
+          
+          // Calculate how many notes fit in the duration
+          // Ensure at least one full chord cycle
+          const totalNotes = Math.max(chordOffsets.length, Math.floor(duration / arpSpeed));
+          
+          for (let i = 0; i < totalNotes; i++) {
+              const offset = chordOffsets[i % chordOffsets.length];
+              const noteName = Tone.Frequency(rootMidi + offset, "midi").toNote();
+              const noteTime = time + (i * arpSpeed);
+              
+              // Schedule the envelope and trigger
+              audio.arpSynth.triggerAttackRelease(noteName, arpSpeed, noteTime, velocity);
+          }
+      }
       return;
     }
     
@@ -4751,26 +4842,6 @@ function notifyStateChange() {
   }
 }
 
-function setupThemeControls() {
-    const stdBtn = document.getElementById("theme-std-graphic");
-    const bwBtn = document.getElementById("theme-bw-graphic");
-    
-    if (stdBtn) {
-        stdBtn.addEventListener("click", () => {
-            document.body.classList.remove("theme-bw");
-        });
-    }
-    
-    if (bwBtn) {
-        bwBtn.addEventListener("click", () => {
-            document.body.classList.add("theme-bw");
-        });
-    }
-}
-
 // Initialize Theme Controls
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", setupThemeControls);
-} else {
-    setupThemeControls();
-}
+// Removed setupThemeControls as it is now handled in renderThemeControls
+
