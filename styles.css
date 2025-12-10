@@ -315,19 +315,19 @@ pre, code, kbd, samp {
   line-height: 0.95rem;
   color: var(--c64-purple);
   width: 100%; /* Match container width */
-  min-height: 23rem; /* Prevent vertical collapse (24 lines * 0.95) */
-  height: auto;
+  height: 23.5rem; /* 24 lines * 0.95 + padding */
   margin: 0 auto; /* Center horizontally */
   border: 2px solid var(--c64-purple);
   padding: 0.25rem;
   position: relative;
   box-sizing: border-box;
   background: transparent;
+  overflow: hidden; /* Clip content */
 }
 
 .viz-row {
-  height: 0.85rem; /* Match line-height */
-  min-height: 0.85rem;
+  height: 0.95rem; /* Match line-height */
+  min-height: 0.95rem;
 }
 
 #drum-body {
@@ -987,7 +987,7 @@ button:focus-visible {
 }
 
 #visualizer-controls {
-  margin-top: -0.8rem;
+  margin-top: -1.2rem;
   padding: -0.25rem;
   display: flex;
   flex-direction: column;
@@ -1073,6 +1073,8 @@ body.theme-bw #load-panel {
   /* Moved inside synth-panel, so relative positioning */
   position: relative;
   margin-top: -1.2rem; /* Reduced margin */
+  margin-left: 0.1rem;
+  margin-right: 0.3rem;
   display: flex;
   gap: 0.8rem;
   align-items: center;

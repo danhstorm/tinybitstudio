@@ -484,7 +484,10 @@ function renderTransport() {
     // Row 4: Tempo
     const tempoRow = document.createElement("div");
     tempoRow.className = "control-row transport-row";
-    tempoRow.append(document.createTextNode("TEMPO"));
+    const tempoLabel = document.createElement("span");
+    tempoLabel.textContent = "TEMPO";
+    tempoLabel.style.fontSize = "0.7rem";
+    tempoRow.append(tempoLabel);
   
     const tempoVal = document.createElement("span");
     tempoVal.id = "tempo-readout";
@@ -501,7 +504,10 @@ function renderTransport() {
     // Row 5: Swing
     const swingRow = document.createElement("div");
     swingRow.className = "control-row transport-row";
-    swingRow.append(document.createTextNode("SWING"));
+    const swingLabel = document.createElement("span");
+    swingLabel.textContent = "SWING";
+    swingLabel.style.fontSize = "0.7rem";
+    swingRow.append(swingLabel);
   
     const swingVal = document.createElement("span");
     swingVal.id = "swing-readout";
@@ -573,6 +579,9 @@ function loadDemoSong(index) {
     renderDrumBox();
     renderSynthStack();
     renderVisualizerControls();
+    if (refs.visualizerBody) {
+        refs.visualizerBody.className = `viz-mode-${state.visualizerMode}`;
+    }
     
     const oldControls = document.getElementById("pattern-controls");
     if (oldControls) {
@@ -945,7 +954,7 @@ function renderSynthStack() {
     // Mute Button
     const muteBtn = document.createElement("button");
     muteBtn.className = "transport-btn";
-    muteBtn.style.marginLeft = "0.5rem";
+    muteBtn.style.marginLeft = "0"; // Removed margin
     muteBtn.style.fontSize = "0.7rem";
     
     const isMuted = state.pattern.channelSettings[track.key]?.muted;
@@ -1238,14 +1247,24 @@ function renderThemeControls() {
     const container = document.createElement("div");
     container.id = "theme-controls-fixed";
     
+    const playSongBtn = document.createElement("button");
+    playSongBtn.id = "global-play-song-btn";
+    playSongBtn.className = "theme-transport-btn";
+    playSongBtn.title = "Play Song";
+    playSongBtn.innerHTML = "▶<span style='font-size: 0.9em; margin-left: -3px; font-weight: bold;'>→</span>"; // Thinner arrow, connected
+    playSongBtn.addEventListener("click", () => {
+        handleStop();
+        handlePlay('song');
+    });
+
     const playBtn = document.createElement("button");
-    playBtn.id = "global-play-btn";
+    playBtn.id = "global-play-pattern-btn";
     playBtn.className = "theme-transport-btn";
-    playBtn.title = "Play";
+    playBtn.title = "Play Pattern";
     playBtn.textContent = "▶";
     playBtn.addEventListener("click", () => {
         handleStop();
-        handlePlay('song');
+        handlePlay('pattern');
     });
     
     const stopBtn = document.createElement("button");
@@ -1277,7 +1296,7 @@ function renderThemeControls() {
         document.body.classList.add("theme-bw");
     });
     
-    container.append(playBtn, stopBtn, label, stdBtn, bwBtn);
+    container.append(playSongBtn, playBtn, stopBtn, label, stdBtn, bwBtn);
     return container;
 }
 
@@ -2535,7 +2554,7 @@ function renderVizMode2(data, width, height) {
     for (let i = 0; i < numBars; i++) {
         const dataIdx = Math.floor((i / numBars) * data.length);
         // Scale down to prevent clipping and keep peaks lower
-        const val = Math.abs(data[dataIdx]) * 0.5; 
+        const val = Math.abs(data[dataIdx]) * 0.5; // Reduced scale
         let targetHeight = Math.floor(val * height);
         
         // Smoothing / Decay logic
@@ -2740,16 +2759,17 @@ function renderVizMode5(data, width, height) {
     // "Symmetry" - Solid Blocky Version
     const lines = Array.from({ length: height }, () => Array(width).fill(" "));
     const mid = Math.floor(width / 2);
-    const cy = Math.floor(height / 2);
+    const cy = Math.floor((height - 1) / 2); // Shift center up slightly to be visually centered
     
     for (let x = 0; x < mid; x++) {
         const idx = Math.floor((x / mid) * data.length);
         const val = Math.abs(data[idx]); // Use absolute value for size
         
         // Calculate height of the block based on amplitude
-        const blockHeight = Math.floor(val * height * 0.5); 
+        const blockHeight = Math.floor(val * height * 0.8); // Increased scale
         
         if (blockHeight > 0) {
+            // Center vertically
             const startY = Math.max(0, cy - Math.floor(blockHeight / 2));
             const endY = Math.min(height - 1, cy + Math.ceil(blockHeight / 2));
             
@@ -2933,19 +2953,21 @@ function handleStop() {
 function updateTransportUI() {
     const playBtn = document.getElementById("transport-play-btn");
     const playAllBtn = document.getElementById("transport-play-all-btn");
-    const globalPlayBtn = document.getElementById("global-play-btn");
+    const globalPlaySongBtn = document.getElementById("global-play-song-btn");
+    const globalPlayPatternBtn = document.getElementById("global-play-pattern-btn");
     
     if (playBtn) playBtn.classList.remove("playing");
     if (playAllBtn) playAllBtn.classList.remove("playing");
-    if (globalPlayBtn) globalPlayBtn.classList.remove("playing");
+    if (globalPlaySongBtn) globalPlaySongBtn.classList.remove("playing");
+    if (globalPlayPatternBtn) globalPlayPatternBtn.classList.remove("playing");
 
     if (audio.playing) {
-        if (globalPlayBtn) globalPlayBtn.classList.add("playing");
-        
-        if (audio.playMode === 'song' && playAllBtn) {
-            playAllBtn.classList.add("playing");
-        } else if (playBtn) {
-            playBtn.classList.add("playing");
+        if (audio.playMode === 'song') {
+            if (playAllBtn) playAllBtn.classList.add("playing");
+            if (globalPlaySongBtn) globalPlaySongBtn.classList.add("playing");
+        } else {
+            if (playBtn) playBtn.classList.add("playing");
+            if (globalPlayPatternBtn) globalPlayPatternBtn.classList.add("playing");
         }
     }
 }
@@ -3662,10 +3684,23 @@ function applySnapshot(snapshot) {
   Tone.Transport.swing = state.swing / 100;
   applyWaveformToVoices(state.pattern.channelSettings);
   
+  // Apply Delay Settings
+  if (state.pattern.channelSettings?.drums) {
+      const settings = state.pattern.channelSettings.drums;
+      if (audio.drumDelay) {
+          if (settings.delayTime) audio.drumDelay.delayTime.value = settings.delayTime;
+          if (settings.delayFeedback !== undefined) audio.drumDelay.feedback.value = settings.delayFeedback;
+      }
+  }
+  
   // Update UI
   renderTransport();
   renderDrumBox();
   renderSynthStack();
+  renderVisualizerControls();
+  if (refs.visualizerBody) {
+      refs.visualizerBody.className = `viz-mode-${state.visualizerMode}`;
+  }
   
   // Update Pattern Controls
   const oldControls = document.getElementById("pattern-controls");

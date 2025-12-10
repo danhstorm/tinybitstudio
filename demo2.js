@@ -1,4 +1,5 @@
 export const demo2 = {
+  "visualizerMode": 5,
   "patterns": [
     {
       "drums": {
