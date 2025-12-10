@@ -454,7 +454,17 @@ function renderTransport() {
     
     const stopBtn = createButton("STOP", "transport-btn boxed-btn orange-btn stop-btn", () => handleStop());
     stopBtn.id = "transport-stop-btn";
-    transportRow.append(playAllBtn, playBtn, stopBtn);
+    
+    const lineBtn = createButton("|", "transport-btn boxed-btn", () => {
+        if (state.focusedStep) {
+            togglePatternEndMarker(Number(state.focusedStep.index));
+        }
+    });
+    lineBtn.id = "transport-line-btn";
+    lineBtn.style.color = "white";
+    lineBtn.style.marginLeft = "0.5rem";
+    
+    transportRow.append(playAllBtn, playBtn, stopBtn, lineBtn);
 
     // Row 4: Tempo
     const tempoRow = document.createElement("div");
@@ -833,6 +843,9 @@ function renderDrumBox() {
         if (state.focusedStep?.channel === "drums" && state.focusedStep?.lane === lane.key && state.focusedStep?.index === index) {
           btn.classList.add("focused-step");
         }
+        if (state.pattern.length && index === state.pattern.length) {
+          btn.classList.add("step-marker-end");
+        }
         btn.dataset.type = "drum";
         btn.dataset.lane = lane.key;
         btn.dataset.index = index.toString();
@@ -1118,13 +1131,6 @@ function renderSynthStack() {
             });
             btnType.addEventListener("focus", () => rememberGridFocus(btnType));
             
-            // Store buttons. We need a way to access them by index.
-            // refs.stepButtons.synth[track.key] is an array.
-            // We can store an object { note: btn, type: btn } or just push both?
-            // Existing code expects an array of buttons for playhead update.
-            // Let's push an object with a custom interface or just push both and handle it?
-            // updatePlayheadUI iterates and sets dataset.playhead.
-            // If we push both, both get playhead. That's fine.
             refs.stepButtons.synth[track.key].push(btnNote, btnType);
             
             col.append(btnNote, btnType);
@@ -1152,6 +1158,9 @@ function renderSynthStack() {
         state.pattern[track.key].forEach((step, index) => {
           const btn = document.createElement("button");
           btn.className = "step-btn";
+          if (state.pattern.length && index === state.pattern.length) {
+            btn.classList.add("step-marker-end");
+          }
           if (state.focusedStep?.channel === track.key && state.focusedStep?.index === index) {
             btn.classList.add("focused-step");
           }
@@ -1441,13 +1450,11 @@ function renderPatternControls() {
                     // Deep copy
                     state.patterns[i] = JSON.parse(JSON.stringify(sourcePattern));
                     
-                    // If we pasted into the currently editing pattern, update reference
                     if (state.editingPatternIdx === i) {
                         state.pattern = state.patterns[i];
                         renderSynthStack();
                         renderDrumBox();
                     }
-                    // If we pasted into the currently playing pattern, update audio
                     if (audio.playingPatternIdx === i) {
                         applyWaveformToVoices(state.patterns[i].channelSettings);
                     }
@@ -1584,12 +1591,12 @@ function renderHelp() {
     "ARROWS      :: Move cursor",
     "SPACE       :: Toggle step / Cycle levels",
     "ENTER       :: Play / Stop",
+    "Z           :: Set Pattern End Marker",
     "",
     "SYNTH EDITING",
     "-------------",
-    "CMD+UP/DN   :: Pitch +/- 1 semitone",
-    "CMD+SH+UP/DN:: Pitch +/- 1 octave",
-    "ALT+UP/DN   :: Pitch +/- 1 semitone",
+    "CMD/SH+UP/DN:: Pitch +/- 1 semitone",
+    "ALT+UP/DN   :: Pitch +/- 1 octave",
     "ALT+CLICK   :: Cycle Arp Chord",
     "",
     "KEYBOARD",
@@ -1600,10 +1607,8 @@ function renderHelp() {
     "",
     "SAVING & EXPORTING",
     "------------------",
-    "SAVE stores your song locally in the browser so you",
-    "can load it later to continue working.",
-    "EXPORT saves your song as a .wav file that you can",
-    "share with friends."
+    "SAVE stores your song locally in the browser so you can load it later to continue working.",
+    "EXPORT saves your song as a .wav file that you can share with friends."
   ];
 
   const pre = document.createElement("pre");
@@ -1829,6 +1834,27 @@ function toggleArpChordType(index) {
     if (btnNote && btnType) {
         renderArpButtons(btnNote, btnType, index);
     }
+}
+
+function togglePatternEndMarker(index) {
+  const currentLength = state.pattern.length || SYNTH_STEPS;
+  const targetLength = index; 
+  
+  if (currentLength === targetLength) {
+      // Toggle off (reset to default)
+      delete state.pattern.length;
+  } else {
+      state.pattern.length = targetLength;
+  }
+  
+  renderDrumBox();
+  renderSynthStack();
+  
+  const lineBtn = document.getElementById("transport-line-btn");
+  if (lineBtn && state.focusedStep) {
+      const isMarker = state.pattern.length === state.focusedStep.index;
+      lineBtn.style.color = isMarker ? "var(--c64-orange)" : "white";
+  }
 }
 
 function toggleSynthStep(channelKey, index) {
@@ -3300,7 +3326,8 @@ function advanceStep(time) {
   
   Tone.Draw.schedule(() => updatePlayheadUI(synthStep), time);
   
-  const nextStep = (audio.currentStep + 1) % SYNTH_STEPS;
+  const patternLength = currentPattern.length || SYNTH_STEPS;
+  const nextStep = (audio.currentStep + 1) % patternLength;
   
   // Check for pattern switch at end of bar
   if (nextStep === 0) {
@@ -3856,6 +3883,15 @@ function handleGlobalKeyDown(event) {
       }
       return;
   }
+
+  // Toggle Pattern End Marker
+  if (event.key.toLowerCase() === "z" && !event.metaKey && !event.ctrlKey) {
+      if (state.focusedStep) {
+          event.preventDefault();
+          togglePatternEndMarker(Number(state.focusedStep.index));
+      }
+      return;
+  }
   
   // Backspace / Delete to clear step
   if (event.key === "Backspace" || event.key === "Delete") {
@@ -3988,20 +4024,19 @@ function handleGlobalKeyDown(event) {
       handleNoteKeyInput(keySpec, target.dataset.channel, Number(target.dataset.index));
       return;
     }
-    if ((event.ctrlKey || event.metaKey) && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
-      event.preventDefault();
-      const delta = event.key === "ArrowUp" ? 1 : -1;
-      if (event.shiftKey) {
-        shiftStepOctave(target.dataset.channel, Number(target.dataset.index), delta);
-      } else {
-        shiftStepNote(target.dataset.channel, Number(target.dataset.index), delta);
-      }
-      return;
-    }
+    // Alt + Arrow -> Octave
     if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
       event.preventDefault();
       const delta = event.key === "ArrowUp" ? 1 : -1;
-      setStepSemitone(target.dataset.channel, Number(target.dataset.index), getStepSemitone(getSynthStep(target.dataset.channel, Number(target.dataset.index)), target.dataset.channel) + delta);
+      shiftStepOctave(target.dataset.channel, Number(target.dataset.index), delta);
+      return;
+    }
+
+    // Cmd/Ctrl OR Shift + Arrow -> Semitone
+    if ((event.ctrlKey || event.metaKey || event.shiftKey) && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      event.preventDefault();
+      const delta = event.key === "ArrowUp" ? 1 : -1;
+      shiftStepNote(target.dataset.channel, Number(target.dataset.index), delta);
       return;
     }
   } else if (state.activeTrack) {
@@ -4571,6 +4606,12 @@ function setFocusedStep(channelKey, index, laneKey = null, subtype = null) {
   } else {
       const btn = refs.stepButtons.synth[channelKey]?.[index];
       if (btn) btn.classList.add("focused-step");
+  }
+  
+  const lineBtn = document.getElementById("transport-line-btn");
+  if (lineBtn) {
+      const isMarker = state.pattern.length === index;
+      lineBtn.style.color = isMarker ? "var(--c64-orange)" : "white";
   }
   
   updateKnobDisplays();

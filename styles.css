@@ -1352,3 +1352,7 @@ body.theme-bw #theme-std-graphic:hover {
   flex-shrink: 0;
   display: block;
 }
+
+.step-marker-end {
+  border-left: 2px solid var(--c64-orange) !important;
+}
