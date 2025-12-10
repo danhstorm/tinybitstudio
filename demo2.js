@@ -1,5 +1,5 @@
 export const demo2 = {
-  "visualizerMode": 5,
+  "visualizerMode": 4,
   "patterns": [
     {
       "drums": {
@@ -2103,9 +2103,9 @@ export const demo2 = {
     true
   ],
   "tempo": 110,
-  "swing": 20,
+  "swing": 35,
   "trackName": "DEMO SONG 2",
   "currentUser": "DANNE DYNAMIT",
   "scaleId": "cmaj",
-  "visualizerMode": 5
+  "visualizerMode": 4
 };

@@ -244,8 +244,8 @@ pre, code, kbd, samp {
 
 .demo-btn-box {
   flex: 1;
-  border: 1px solid var(--c64-orange);
-  color: var(--c64-orange);
+  border: 1px solid var(--c64-cyan);
+  color: var(--c64-cyan);
   padding: 0.2rem;
   text-align: center;
   cursor: pointer;
@@ -253,16 +253,16 @@ pre, code, kbd, samp {
 }
 
 .demo-btn-box:hover {
-  background: transparent;
-  color: var(--c64-orange);
-  border-color: var(--c64-orange);
+  background: var(--c64-cyan);
+  color: var(--c64-dark);
+  border-color: var(--c64-cyan);
 }
 
 
 
 .demo-btn-box:active {
-  background: var(--c64-orange);
-  color: var(--c64-dark);
+  background: transparent;
+  color: var(--c64-cyan);
 }
 
 .ascii-panel {
@@ -382,7 +382,11 @@ pre, code, kbd, samp {
   align-items: center;
   font-size: 0.95rem;
   line-height: 1.2rem;
-  white-space: nowrap;
+}
+
+.file-row {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .transport-row {
@@ -405,11 +409,20 @@ pre, code, kbd, samp {
   padding: 0;
   outline: none;
   caret-color: var(--c64-green);
+  /* Attempt to make caret thicker if possible, though standard CSS is limited */
+  caret-shape: block; 
+  caret-width: 1ch;
 }
 
 .bare-input:focus {
   background: rgba(141, 255, 123, 0.1);
 }
+
+/* Hide brackets on hover for specific buttons - REMOVED per user request */
+/* .file-btn:hover .bracket,
+.mute-btn:hover .bracket {
+  display: none; 
+} */
 
 .section-divider {
   width: 100%;
@@ -433,25 +446,91 @@ button:focus-visible {
   outline: 1px dashed var(--c64-green);
 }
 
+.file-btn {
+  /* flex: 1; */
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.file-btn:hover {
+  background: var(--c64-purple);
+  color: var(--c64-dark) !important;
+}
+
+.mute-btn:hover {
+  background: var(--c64-purple);
+  color: var(--c64-dark) !important;
+}
+
 .transport-btn {
-  color: var(--c64-green);
+  --btn-color: var(--c64-green);
+  color: var(--btn-color);
   font-size: 0.8rem;
   outline: none !important;
+  padding: 0 0.2ch;
 }
 
 .transport-btn:focus-visible {
   outline: none !important;
 }
 
+.transport-btn:hover {
+  background: var(--btn-color);
+  color: var(--c64-dark);
+}
+
+.transport-btn:hover * {
+  color: var(--c64-dark) !important;
+}
+
+/* Ensure file buttons override transport-btn hover color */
+.file-btn:hover {
+  background: var(--c64-purple) !important;
+  color: var(--c64-dark) !important;
+}
+
 .transport-btn.boxed-btn {
-  color: var(--c64-purple);
-  border: 1px solid var(--c64-purple);
+  --btn-color: var(--c64-purple);
+  color: var(--btn-color);
+  border: 1px solid var(--btn-color);
   padding: 0.1rem 0.3rem;
   margin: 0 0.1rem;
 }
 
+.transport-btn.boxed-btn.orange-btn {
+  --btn-color: white;
+  background: var(--btn-color);
+  color: var(--c64-dark);
+  border-color: var(--btn-color);
+}
+
+.transport-btn.boxed-btn.orange-btn:hover {
+  background: transparent;
+  color: var(--btn-color);
+}
+
+.transport-btn.boxed-btn.orange-btn:hover * {
+  color: var(--btn-color) !important;
+}
+
 .transport-btn.boxed-btn.playing,
-.transport-btn.boxed-btn:active {
+.transport-btn.boxed-btn:active,
+.transport-btn.boxed-btn.orange-btn.playing,
+.transport-btn.boxed-btn.orange-btn:active {
+  background: var(--c64-green);
+  color: var(--c64-dark);
+  border-color: var(--c64-green);
+}
+
+.transport-btn.boxed-btn.orange-btn.stop-btn.playing,
+.transport-btn.boxed-btn.orange-btn.stop-btn:active {
+  background: var(--c64-orange);
+  color: var(--c64-dark);
+  border-color: var(--c64-orange);
+}
+.transport-btn.boxed-btn.orange-btn:active {
   color: var(--c64-green);
   border-color: var(--c64-green);
 }
@@ -951,8 +1030,8 @@ button:focus-visible {
   width: 100%;
   font-size: 0.6rem;
   padding: 2px 0;
-  color: var(--c64-purple);
-  border: 1px solid var(--c64-purple);
+  color: var(--c64-orange);
+  border: 1px solid var(--c64-orange);
   cursor: pointer;
   text-align: center;
 }
@@ -1012,8 +1091,9 @@ button:focus-visible {
 .viz-btn {
   flex: 1;
   height: 32px;
-  border: 2px solid var(--c64-purple);
-  color: var(--c64-purple);
+  --btn-color: var(--c64-purple);
+  border: 2px solid var(--btn-color);
+  color: var(--btn-color);
   background: transparent;
   display: flex;
   align-items: center;
@@ -1022,18 +1102,55 @@ button:focus-visible {
   font-size: 0.9rem;
 }
 
+.mute-btn {
+  /* display: inline-flex; */
+  /* justify-content: center; */
+  /* align-items: center; */
+  /* min-width: 6ch; */
+}
+
+.mute-btn:hover {
+  background: var(--c64-purple) !important;
+  color: var(--c64-dark) !important;
+}
+
+.wave-btn:not(.selected):hover {
+  background: var(--c64-purple);
+  color: var(--c64-dark) !important;
+}
+
+.wave-btn:not(.selected):hover * {
+  color: var(--c64-dark) !important;
+}
+
+.tempo-btn:hover {
+  background: var(--c64-purple);
+  color: var(--c64-dark) !important;
+}
+
+.tempo-btn:active {
+  background: transparent;
+  color: var(--c64-purple) !important;
+}
+
+.viz-btn:not(.active):hover {
+  background: var(--btn-color);
+  color: var(--c64-dark) !important;
+}
+
 .viz-btn.active {
+  pointer-events: none;
   border: 2px solid var(--c64-green);
-  color: var(--c64-green);
+  color: var(--c64-green) !important;
   box-shadow: 0 0 8px rgba(141, 255, 123, 0.2);
 }
 
-.viz-mode-1 { color: var(--c64-green) !important; }
-.viz-mode-2 { color: var(--c64-purple) !important; }
-.viz-mode-3 { color: var(--c64-cyan) !important; }
-.viz-mode-4 { color: var(--c64-orange) !important; }
-.viz-mode-5 { color: var(--c64-green) !important; }
-.viz-mode-6 { color: var(--c64-purple) !important; }
+.viz-mode-1 { --btn-color: var(--c64-green); color: var(--btn-color) !important; }
+.viz-mode-2 { --btn-color: var(--c64-purple); color: var(--btn-color) !important; }
+.viz-mode-3 { --btn-color: var(--c64-cyan); color: var(--btn-color) !important; }
+.viz-mode-4 { --btn-color: var(--c64-orange); color: var(--btn-color) !important; }
+.viz-mode-5 { --btn-color: var(--c64-green); color: var(--btn-color) !important; }
+.viz-mode-6 { --btn-color: var(--c64-purple); color: var(--btn-color) !important; }
 
 .viz-color-1 { color: var(--c64-cyan); }
 .viz-color-2 { color: var(--c64-green); }
@@ -1100,9 +1217,10 @@ body.theme-bw #load-panel {
 }
 
 .theme-transport-btn {
+  --btn-color: white;
   background: transparent;
   border: none;
-  color: var(--c64-purple);
+  color: var(--btn-color);
   font-size: 1.4rem; /* Larger symbols */
   cursor: pointer;
   padding: 0 0.4rem;
@@ -1113,14 +1231,23 @@ body.theme-bw #load-panel {
 }
 
 .theme-transport-btn:hover {
-  /* No hover effect */
+  background: transparent;
+  color: var(--c64-purple); /* Purple hover */
 }
 
 .theme-transport-btn:active,
 .theme-transport-btn.playing {
+  background: transparent;
   color: var(--c64-green);
+  border: none;
   text-shadow: 0 0 8px var(--c64-green);
   transform: scale(0.95);
+}
+
+.theme-transport-btn.stop-btn:active,
+.theme-transport-btn.stop-btn.playing {
+  color: var(--c64-orange);
+  text-shadow: 0 0 8px var(--c64-orange);
 }
 
 .theme-btn-graphic {
@@ -1158,6 +1285,15 @@ body.theme-bw #load-panel {
   );
 }
 
+/* B&W Theme Override for Color Button */
+body.theme-bw #theme-std-graphic {
+  filter: grayscale(100%);
+}
+
+body.theme-bw #theme-std-graphic:hover {
+  filter: none;
+}
+
 /* Save Slot Inputs */
 .slot-input {
   background: transparent;
@@ -1182,7 +1318,7 @@ body.theme-bw #load-panel {
 }
 
 .glyph-divider {
-  color: var(--c64-purple);
+  color: white;
   font-family: "C64Pro", monospace;
   font-size: 1rem;
   line-height: 1rem;
@@ -1192,7 +1328,7 @@ body.theme-bw #load-panel {
   width: 100%;
   height: auto;
   opacity: 0.8;
-  text-shadow: 0 0 4px var(--c64-purple);
+  text-shadow: none;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;

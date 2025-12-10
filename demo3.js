@@ -1,5 +1,5 @@
 export const demo3 = {
-  "visualizerMode": 4,
+  "visualizerMode": 5,
   "patterns": [
     {
       "drums": {
@@ -458,8 +458,8 @@ export const demo3 = {
   "patternEnable": [true, false, false, false],
   "tempo": 200,
   "swing": 10,
-  "trackName": "YOU KNOW ME",
-  "currentUser": "BUTALSOVERYCOOL",
+  "trackName": "BUTALSOVERYCOOL",
+  "currentUser": "YOU KNOW ME",
   "scaleId": "cmaj",
   "visualizerMode": 5
 };

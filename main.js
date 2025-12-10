@@ -355,21 +355,22 @@ function renderTransport() {
 
     // Row 2: Save/Load/Help/Reset
     const fileRow = document.createElement("div");
-    fileRow.className = "control-row";
-    fileRow.style.flexWrap = "wrap"; // Allow wrapping for export button
+    fileRow.className = "control-row file-row"; // Added file-row class
+    fileRow.style.flexWrap = "wrap"; 
+    fileRow.style.justifyContent = "space-between"; // Fill horizontal space
     
-    const saveBtn = createButton("[SAVE]", "transport-btn", (e) => handleSave(e.target));
+    const saveBtn = createButton("[SAVE]", "transport-btn file-btn", (e) => handleSave(e.target));
     saveBtn.style.color = "var(--c64-purple)";
     
-    const loadBtn = createButton("[LOAD]", "transport-btn", () => openSlotOverlay());
+    const loadBtn = createButton("[LOAD]", "transport-btn file-btn", () => openSlotOverlay());
     loadBtn.id = "transport-load-btn";
     loadBtn.style.color = "var(--c64-purple)";
     
-    const helpBtn = createButton("[HELP]", "transport-btn", () => toggleHelp());
+    const helpBtn = createButton("[HELP]", "transport-btn file-btn", () => toggleHelp());
     helpBtn.id = "transport-help-btn";
     helpBtn.style.color = "var(--c64-purple)";
     
-    const resetBtn = createButton("[CLEAR]", "transport-btn", (e) => {
+    const resetBtn = createButton("[CLEAR]", "transport-btn file-btn", (e) => {
       const btn = e.target;
       e.stopPropagation(); // Prevent bubbling
       
@@ -406,8 +407,9 @@ function renderTransport() {
     });
     resetBtn.style.color = "var(--c64-purple)";
     
-    const exportBtn = createButton("[EXPORT WAV]", "transport-btn", () => handleExportMp3());
+    const exportBtn = createButton("[EXPORT .WAV]", "transport-btn file-btn", () => handleExportMp3());
     exportBtn.style.color = "var(--c64-purple)"; 
+    // exportBtn.style.justifyContent = "flex-start";
     
     fileRow.append(saveBtn, loadBtn, helpBtn, resetBtn, exportBtn);
     refs.transportBody.append(fileRow);
@@ -418,7 +420,7 @@ function renderTransport() {
     demoRow.style.alignItems = "center";
 
     const demoLabel = document.createElement("span");
-    demoLabel.textContent = "DEMOS:";
+    demoLabel.textContent = "DEMO:";
     demoLabel.style.color = "var(--c64-cyan)";
     demoLabel.style.fontSize = "0.8rem";
     demoLabel.style.marginRight = "0.5rem";
@@ -427,7 +429,7 @@ function renderTransport() {
     ["1", "2", "3", "4"].forEach((label, idx) => {
         const btn = document.createElement("button");
         btn.className = "demo-btn-box";
-        btn.textContent = label;
+        btn.textContent = "#" + label;
         btn.addEventListener("click", () => loadDemoSong(idx + 1));
         demoRow.append(btn);
     });
@@ -438,19 +440,19 @@ function renderTransport() {
     const transportRow = document.createElement("div");
     transportRow.className = "control-row transport-row";
     
-    const playAllBtn = createButton("[PLAY SONG]", "transport-btn boxed-btn", () => {
+    const playAllBtn = createButton("PLAY SONG", "transport-btn boxed-btn orange-btn", () => {
       handleStop();
       handlePlay('song');
     });
     playAllBtn.id = "transport-play-all-btn";
 
-    const playBtn = createButton("[PLAY]", "transport-btn boxed-btn", () => {
+    const playBtn = createButton("PLAY", "transport-btn boxed-btn orange-btn", () => {
       handleStop();
       handlePlay('pattern');
     });
     playBtn.id = "transport-play-btn"; 
     
-    const stopBtn = createButton("STOP", "transport-btn boxed-btn", () => handleStop());
+    const stopBtn = createButton("STOP", "transport-btn boxed-btn orange-btn stop-btn", () => handleStop());
     stopBtn.id = "transport-stop-btn";
     transportRow.append(playAllBtn, playBtn, stopBtn);
 
@@ -464,12 +466,12 @@ function renderTransport() {
   
     const tempoVal = document.createElement("span");
     tempoVal.id = "tempo-readout";
-    tempoVal.textContent = ` [${state.tempo}] `;
+    tempoVal.innerHTML = ` <span class="bracket">[</span>${state.tempo}<span class="bracket">]</span> `;
     tempoVal.style.color = "var(--c64-orange)";
   
-    const decTempo = createButton("[-]", "transport-btn", () => adjustTempo(-5));
+    const decTempo = createButton("[-]", "transport-btn tempo-btn", () => adjustTempo(-5));
     decTempo.style.color = "var(--c64-purple)";
-    const incTempo = createButton("[+]", "transport-btn", () => adjustTempo(5));
+    const incTempo = createButton("[+]", "transport-btn tempo-btn", () => adjustTempo(5));
     incTempo.style.color = "var(--c64-purple)";
   
     tempoRow.append(decTempo, tempoVal, incTempo);
@@ -484,15 +486,17 @@ function renderTransport() {
   
     const swingVal = document.createElement("span");
     swingVal.id = "swing-readout";
-    swingVal.textContent = state.swing < 10 ? ` [0${state.swing}%] ` : ` [${state.swing}%] `;
+    // Use innerHTML to wrap brackets
+    const swingText = state.swing < 10 ? `0${state.swing}%` : `${state.swing}%`;
+    swingVal.innerHTML = ` <span class="bracket">[</span>${swingText}<span class="bracket">]</span> `;
     swingVal.style.color = "var(--c64-orange)";
   
-    const decSwing = createButton("[-]", "transport-btn", () => {
+    const decSwing = createButton("[-]", "transport-btn tempo-btn", () => {
       adjustSwing(-5);
     });
     decSwing.style.color = "var(--c64-purple)";
     
-    const incSwing = createButton("[+]", "transport-btn", () => {
+    const incSwing = createButton("[+]", "transport-btn tempo-btn", () => {
       adjustSwing(5);
     });
     incSwing.style.color = "var(--c64-purple)";
@@ -688,12 +692,12 @@ function renderDrumBox() {
     
     // Drum Mute Button
     const muteBtn = document.createElement("button");
-    muteBtn.className = "transport-btn";
+    muteBtn.className = "transport-btn mute-btn";
     muteBtn.style.marginLeft = "0.5rem";
     muteBtn.style.fontSize = "0.7rem";
     
     const isMuted = state.pattern.channelSettings.drums.muted;
-    muteBtn.textContent = "[MUTE]";
+    muteBtn.innerHTML = `<span class="bracket">[</span>MUTE<span class="bracket">]</span>`;
     muteBtn.style.color = isMuted ? "var(--c64-green)" : "var(--c64-purple)";
     
     muteBtn.addEventListener("click", (e) => {
@@ -734,7 +738,7 @@ function renderDrumBox() {
     const updateDelayBtn = () => {
         const currentVal = state.pattern.channelSettings.drums.delayTime;
         const opt = delayOptions.find(o => o.value === currentVal) || delayOptions[1];
-        delayTimeBtn.textContent = `[${opt.label}]`;
+        delayTimeBtn.innerHTML = `<span class="bracket">[</span>${opt.label}<span class="bracket">]</span>`;
     };
     updateDelayBtn();
 
@@ -926,12 +930,13 @@ function renderSynthStack() {
     
     // Mute Button
     const muteBtn = document.createElement("button");
-    muteBtn.className = "transport-btn";
+    muteBtn.className = "transport-btn mute-btn";
     muteBtn.style.marginLeft = "0"; // Removed margin
+    muteBtn.style.marginRight = "0.2rem"; // Reduced margin to wave controls
     muteBtn.style.fontSize = "0.7rem";
     
     const isMuted = state.pattern.channelSettings[track.key]?.muted;
-    muteBtn.textContent = "[MUTE]";
+    muteBtn.innerHTML = `<span class="bracket">[</span>MUTE<span class="bracket">]</span>`;
     muteBtn.style.color = isMuted ? "var(--c64-green)" : "var(--c64-purple)";
     
     muteBtn.addEventListener("click", (e) => {
@@ -952,6 +957,7 @@ function renderSynthStack() {
     // Waveform Selector (For all tracks including Arp)
     const waveGroup = document.createElement("div");
     waveGroup.className = "track-control-group";
+    waveGroup.style.gap = "0"; // Tighter spacing
     
     // Wave Label
     const waveLabel = document.createElement("span");
@@ -963,7 +969,7 @@ function renderSynthStack() {
         const isSelected = state.pattern.channelSettings[track.key]?.wave === w.id;
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "transport-btn";
+        btn.className = "transport-btn wave-btn" + (isSelected ? " selected" : "");
         btn.style.color = "var(--c64-purple)";
         
         const waveColor = isSelected ? "var(--c64-green)" : "var(--c64-purple)";
@@ -988,6 +994,10 @@ function renderSynthStack() {
                 const waveId = WAVE_TYPES[idx].id;
                 const isNowSelected = waveId === w.id;
                 const color = isNowSelected ? "var(--c64-green)" : "var(--c64-purple)";
+                
+                if (isNowSelected) b.classList.add("selected");
+                else b.classList.remove("selected");
+
                 // Removed brackets and added fixed width for monospace alignment
                 b.innerHTML = `<span class="wave-symbol" style="color: ${color};">${WAVE_TYPES[idx].label}</span>`;
             });
@@ -1224,7 +1234,8 @@ function renderThemeControls() {
     playSongBtn.id = "global-play-song-btn";
     playSongBtn.className = "theme-transport-btn";
     playSongBtn.title = "Play Song";
-    playSongBtn.innerHTML = "▶<span style='font-size: 0.9em; margin-left: -3px; font-weight: bold;'>→</span>"; // Thinner arrow, connected
+    // Two play symbols connected by a line
+    playSongBtn.innerHTML = "▶<span style='font-size: 0.9em; margin: 0 -5px; vertical-align: 0px;'>→</span>▶";
     playSongBtn.addEventListener("click", () => {
         handleStop();
         handlePlay('song');
@@ -1242,7 +1253,7 @@ function renderThemeControls() {
     
     const stopBtn = document.createElement("button");
     stopBtn.id = "global-stop-btn";
-    stopBtn.className = "theme-transport-btn";
+    stopBtn.className = "theme-transport-btn stop-btn";
     stopBtn.title = "Stop";
     stopBtn.textContent = "■";
     stopBtn.addEventListener("click", () => {
@@ -2136,7 +2147,7 @@ function adjustTempo(delta) {
   pushToHistory();
   state.tempo = clamp(state.tempo + delta, 60, 200);
   const tempoEl = document.getElementById("tempo-readout");
-  if (tempoEl) tempoEl.textContent = ` [${state.tempo}] `;
+  if (tempoEl) tempoEl.innerHTML = ` <span class="bracket">[</span>${state.tempo}<span class="bracket">]</span> `;
   if (audio.ready) {
     Tone.Transport.bpm.rampTo(state.tempo, 0.1);
   }
@@ -2146,7 +2157,10 @@ function adjustSwing(delta) {
   pushToHistory();
   state.swing = clamp(state.swing + delta, 0, 60);
   const swingEl = document.getElementById("swing-readout");
-  if (swingEl) swingEl.textContent = state.swing < 10 ? ` [0${state.swing}%] ` : ` [${state.swing}%] `;
+  if (swingEl) {
+      const swingText = state.swing < 10 ? `0${state.swing}%` : `${state.swing}%`;
+      swingEl.innerHTML = ` <span class="bracket">[</span>${swingText}<span class="bracket">]</span> `;
+  }
   if (audio.ready) {
     Tone.Transport.swing = state.swing / 100;
   }
@@ -2224,6 +2238,9 @@ const GLYPH_CHARS = ["█", "▓", "▒", "░", "■", "▀", "▄", "▌", "�
 let lastGlyphUpdate = 0;
 let glyphPulsePos = -1;
 let glyphPulseColor = "";
+let glyphMorphPos = -1; // New: Position for glyph character changes
+let glyphOpacities = []; // Store opacities to avoid flickering
+let glyphOpacities2 = [];
 
 function initGlyphDivider() {
     const synthBody = document.getElementById("synth-body");
@@ -2258,13 +2275,18 @@ function initGlyphDivider() {
     // Initialize state
     glyphState = Array(GLYPH_WIDTH).fill(" ");
     glyphState2 = Array(GLYPH_WIDTH).fill(" ");
+    glyphOpacities = Array(GLYPH_WIDTH).fill(1);
+    glyphOpacities2 = Array(GLYPH_WIDTH).fill(1);
+    
     // Fill with random initial noise
     for (let i = 0; i < GLYPH_WIDTH; i++) {
         if (Math.random() > 0.7) {
             glyphState[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+            glyphOpacities[i] = 0.3 + Math.random() * 0.7;
         }
         if (Math.random() > 0.7) {
             glyphState2[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+            glyphOpacities2[i] = 0.3 + Math.random() * 0.7;
         }
     }
 }
@@ -2287,14 +2309,22 @@ function updateGlyphDivider() {
     // Enforce fixed width state
     if (glyphState.length !== GLYPH_WIDTH) {
         glyphState = Array(GLYPH_WIDTH).fill(" ");
+        glyphOpacities = Array(GLYPH_WIDTH).fill(1);
         for (let i = 0; i < GLYPH_WIDTH; i++) {
-             if (Math.random() > 0.7) glyphState[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+             if (Math.random() > 0.7) {
+                 glyphState[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+                 glyphOpacities[i] = 0.3 + Math.random() * 0.7;
+             }
         }
     }
     if (!glyphState2 || glyphState2.length !== GLYPH_WIDTH) {
         glyphState2 = Array(GLYPH_WIDTH).fill(" ");
+        glyphOpacities2 = Array(GLYPH_WIDTH).fill(1);
         for (let i = 0; i < GLYPH_WIDTH; i++) {
-             if (Math.random() > 0.7) glyphState2[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+             if (Math.random() > 0.7) {
+                 glyphState2[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+                 glyphOpacities2[i] = 0.3 + Math.random() * 0.7;
+             }
         }
     }
     
@@ -2310,8 +2340,13 @@ function updateGlyphDivider() {
         // Spawn new pulse occasionally
         if (glyphPulsePos === -1 && Math.random() > 0.95) {
             glyphPulsePos = 0;
-            const colors = ["var(--c64-cyan)", "var(--c64-green)", "var(--c64-orange)"];
+            const colors = ["var(--c64-cyan)", "var(--c64-green)", "var(--c64-orange)", "var(--c64-purple)"];
             glyphPulseColor = colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // Spawn new morph wave occasionally
+        if (glyphMorphPos === -1 && Math.random() > 0.9) {
+            glyphMorphPos = 0;
         }
 
         // Move pulse
@@ -2322,54 +2357,70 @@ function updateGlyphDivider() {
             }
         }
 
-        // Mutate in place (no shifting)
-        const mutate = (arr) => {
+        // Move morph wave (slower than pulse)
+        if (glyphMorphPos !== -1) {
+            glyphMorphPos += 1; 
+            if (glyphMorphPos >= GLYPH_WIDTH) {
+                glyphMorphPos = -1;
+            }
+        }
+
+        // Mutate based on morph wave
+        const mutate = (arr, opacities) => {
             for (let i = 0; i < GLYPH_WIDTH; i++) {
-                // Higher mutation chance near pulse
-                const dist = Math.abs(i - glyphPulsePos);
-                const mutationChance = (glyphPulsePos !== -1 && dist < 4) ? 0.5 : 0.05;
+                // Higher mutation chance near morph wave
+                const dist = Math.abs(i - glyphMorphPos);
+                const mutationChance = (glyphMorphPos !== -1 && dist < 2) ? 0.8 : 0.01;
                 
                 if (Math.random() < mutationChance) {
                     // Maintain density
                     if (arr[i] !== " " || Math.random() > 0.8) {
                         arr[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+                        // Only change opacity when glyph changes
+                        opacities[i] = 0.3 + Math.random() * 0.7;
                     } else {
                         arr[i] = " ";
                     }
                 }
             }
         };
-        mutate(glyphState);
-        mutate(glyphState2);
+        mutate(glyphState, glyphOpacities);
+        mutate(glyphState2, glyphOpacities2);
 
     } else {
         // Slow breathing/glitch when stopped
-        const slowMutate = (arr) => {
+        const slowMutate = (arr, opacities) => {
             if (Math.random() > 0.8) {
                  const idx = Math.floor(Math.random() * GLYPH_WIDTH);
                  if (arr[idx] !== " ") {
                      arr[idx] = Math.random() > 0.5 ? " " : GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+                     opacities[idx] = 0.3 + Math.random() * 0.7;
                  } else if (Math.random() > 0.9) {
                      arr[idx] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+                     opacities[idx] = 0.3 + Math.random() * 0.7;
                  }
             }
         };
-        slowMutate(glyphState);
-        slowMutate(glyphState2);
+        slowMutate(glyphState, glyphOpacities);
+        slowMutate(glyphState2, glyphOpacities2);
         glyphPulsePos = -1;
+        glyphMorphPos = -1;
     }
     
     // Render with spans for color
-    const renderRow = (arr) => {
+    const renderRow = (arr, opacities) => {
         let html = "";
         for (let i = 0; i < GLYPH_WIDTH; i++) {
             const char = arr[i];
             let style = "";
             
+            // Use stored opacity
+            style = `color: rgba(255, 255, 255, ${opacities[i]});`;
+
             if (glyphPulsePos !== -1) {
                  const dist = Math.abs(i - glyphPulsePos);
                  if (dist < 3 && char !== " ") {
-                     style = `color:${glyphPulseColor}; text-shadow: 0 0 4px ${glyphPulseColor}`;
+                     style = `color:${glyphPulseColor}; text-shadow: 0 0 4px ${glyphPulseColor}; opacity: 1;`;
                  }
             }
             html += `<span class="glyph-cell" style="${style}">${char}</span>`;
@@ -2377,7 +2428,7 @@ function updateGlyphDivider() {
         return `<div class="glyph-row">${html}</div>`;
     };
 
-    divider.innerHTML = renderRow(glyphState) + renderRow(glyphState2);
+    divider.innerHTML = renderRow(glyphState, glyphOpacities) + renderRow(glyphState2, glyphOpacities2);
     
     // Reset base color (handled by CSS mostly, but ensure no override)
     divider.style.color = "";
@@ -3186,12 +3237,12 @@ function createDrumVoices(bus) {
       envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 0.2 } // Longer decay
     }).connect(bus),
     S: new Tone.NoiseSynth({
-      noise: { type: "white" },
-      envelope: { attack: 0.001, decay: 0.25, sustain: 0, release: 0.05 } // Slightly shorter decay
+      noise: { type: "pink" }, // Pink noise for lower pitch snare
+      envelope: { attack: 0.001, decay: 0.3, sustain: 0, release: 0.2 } // Old Clap envelope
     }).connect(bus),
     C: new Tone.NoiseSynth({
-      noise: { type: "white" },
-      envelope: { attack: 0.001, decay: 0.3, sustain: 0, release: 0.2 }
+      noise: { type: "white" }, // White noise for clap
+      envelope: { attack: 0.001, decay: 0.25, sustain: 0, release: 0.05 } // Old Snare envelope
     }).connect(bus),
     H: new Tone.MetalSynth({
       frequency: 200,
@@ -4194,7 +4245,13 @@ function updateFocusState(btn) {
 function createButton(text, className, handler) {
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.textContent = text;
+  // Check if text has brackets to wrap them
+  if (text.startsWith("[") && text.endsWith("]")) {
+      const inner = text.slice(1, -1);
+      btn.innerHTML = `<span class="bracket">[</span>${inner}<span class="bracket">]</span>`;
+  } else {
+      btn.textContent = text;
+  }
   btn.className = className;
   btn.addEventListener("click", handler);
   return btn;
@@ -4783,6 +4840,26 @@ async function handleExportMp3() {
         anchor.download = filename;
         document.body.appendChild(anchor);
         anchor.click();
+        
+        // Show Notification
+        if (btn) {
+            btn.textContent = originalText;
+            const notify = document.createElement("span");
+            notify.textContent = " Downloading!";
+            notify.style.color = "var(--c64-green)";
+            notify.style.marginLeft = "0.5rem";
+            notify.style.fontSize = "0.8rem";
+            // Insert after the button
+            if (btn.nextSibling) {
+                btn.parentNode.insertBefore(notify, btn.nextSibling);
+            } else {
+                btn.parentNode.appendChild(notify);
+            }
+            
+            setTimeout(() => {
+                notify.remove();
+            }, 3000);
+        }
         
         // Cleanup
         setTimeout(() => {
