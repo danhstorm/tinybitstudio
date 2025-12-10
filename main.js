@@ -146,6 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderArtistMenu();
     renderVisualizerControls();
     initVisualizerBody();
+    initGlyphDivider();
     bindGlobalKeys();
     startVisualizerTicker();
     
@@ -279,6 +280,7 @@ function buildPanelBorders() {
 function renderIntro() {
   if (!refs.introField) return;
   refs.introField.textContent = "TINY BIT STUDIO";
+  refs.introField.appendChild(createDivider());
 }
 
 function renderTransport() {
@@ -449,7 +451,7 @@ function renderTransport() {
     const transportRow = document.createElement("div");
     transportRow.className = "control-row transport-row";
     
-    const playAllBtn = createButton("[PLAY ALL]", "transport-btn boxed-btn", () => {
+    const playAllBtn = createButton("[PLAY SONG]", "transport-btn boxed-btn", () => {
       handleStop();
       handlePlay('song');
     });
@@ -504,7 +506,7 @@ function renderTransport() {
   
     swingRow.append(decSwing, swingVal, incSwing);
 
-    refs.transportBody.append(titleRow, fileRow, demoRow, createDivider(), transportRow, createDivider(), tempoRow, swingRow);
+    refs.transportBody.append(titleRow, createDivider(), fileRow, createDivider(), demoRow, createDivider(), transportRow, createDivider(), tempoRow, swingRow);
   } catch (e) {
     console.error("Render Transport Error:", e);
     refs.transportBody.innerHTML += `<div style="color:red">Transport Error: ${e.message}</div>`;
@@ -871,15 +873,6 @@ function renderSynthStack() {
 
   const fragment = document.createDocumentFragment();
   
-  const topRow = document.createElement("div");
-  topRow.className = "top-row-container";
-  
-  const synthControls = renderSynthControls();
-  const patternControls = renderPatternControls();
-  
-  topRow.append(synthControls, patternControls);
-  fragment.append(topRow);
-
   try {
     synthTracks.forEach((track) => {
     const wrapper = document.createElement("div");
@@ -1190,6 +1183,16 @@ function renderSynthStack() {
     wrapper.append(header, bodyRow);
     fragment.append(wrapper);
   });
+
+  // Render Controls at the bottom
+  const bottomRow = document.createElement("div");
+  bottomRow.className = "top-row-container"; // Keep class for styling
+  
+  const synthControls = renderSynthControls();
+  const patternControls = renderPatternControls();
+  
+  bottomRow.append(synthControls, patternControls);
+  fragment.append(bottomRow);
   
   refs.synthBody.append(fragment);
   
@@ -1714,6 +1717,15 @@ function toggleSynthStep(channelKey, index) {
     next = DEFAULT_STEP_VELOCITY;
   } else {
     next = 0;
+    // Clear step data when toggling off
+    step.note = null;
+    step.degree = null;
+    step.direction = 0;
+    step.decay = DEFAULT_STEP_DECAY;
+    step.mod = 0;
+    if (channelKey === "arp") {
+        step.chordId = null;
+    }
   }
   setStepVelocity(channelKey, index, next);
   if (next > 0) {
@@ -2084,12 +2096,131 @@ function startVisualizerTicker() {
   const render = () => {
     try {
       updateVisualizer();
+      updateGlyphDivider();
     } catch (e) {
       console.error("Visualizer error:", e);
     }
     requestAnimationFrame(render);
   };
   requestAnimationFrame(render);
+}
+
+let glyphState = [];
+const GLYPH_WIDTH = 80; 
+const GLYPH_CHARS = ["█", "▓", "▒", "░", "■", "▀", "▄", "▌", "▐", "▖", "▗", "▘", "▙", "▚", "▛", "▜", "▝", "▞", "▟"];
+let lastGlyphUpdate = 0;
+let glyphPulsePos = -1;
+let glyphPulseColor = "";
+
+function initGlyphDivider() {
+    const synthBody = document.getElementById("synth-body");
+    if (!synthBody) return;
+    
+    // Check if already exists
+    if (document.getElementById("glyph-divider")) return;
+
+    const divider = document.createElement("div");
+    divider.id = "glyph-divider";
+    divider.className = "glyph-divider";
+    // Insert before synthBody (which is inside synth-panel)
+    // This places it at the top of the synth panel, effectively between drums and synth
+    synthBody.parentNode.insertBefore(divider, synthBody);
+    
+    // Initialize state
+    glyphState = Array(GLYPH_WIDTH).fill(" ");
+    // Fill with random initial noise
+    for (let i = 0; i < GLYPH_WIDTH; i++) {
+        if (Math.random() > 0.7) {
+            glyphState[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+        }
+    }
+}
+
+function updateGlyphDivider() {
+    const divider = document.getElementById("glyph-divider");
+    if (!divider) return;
+    
+    // Enforce fixed width state
+    if (glyphState.length !== GLYPH_WIDTH) {
+        glyphState = Array(GLYPH_WIDTH).fill(" ");
+        for (let i = 0; i < GLYPH_WIDTH; i++) {
+             if (Math.random() > 0.7) glyphState[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+        }
+    }
+    
+    const now = Date.now();
+    const isPlaying = Tone.Transport.state === "started";
+    // Update faster when playing
+    const interval = isPlaying ? 60 : 200; 
+    
+    if (now - lastGlyphUpdate < interval) return;
+    lastGlyphUpdate = now;
+    
+    if (isPlaying) {
+        // Spawn new pulse occasionally
+        if (glyphPulsePos === -1 && Math.random() > 0.95) {
+            glyphPulsePos = 0;
+            const colors = ["var(--c64-cyan)", "var(--c64-green)", "var(--c64-orange)"];
+            glyphPulseColor = colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // Move pulse
+        if (glyphPulsePos !== -1) {
+            glyphPulsePos += 2; // Move faster than 1 char per tick
+            if (glyphPulsePos >= GLYPH_WIDTH) {
+                glyphPulsePos = -1;
+            }
+        }
+
+        // Mutate in place (no shifting)
+        for (let i = 0; i < GLYPH_WIDTH; i++) {
+            // Higher mutation chance near pulse
+            const dist = Math.abs(i - glyphPulsePos);
+            const mutationChance = (glyphPulsePos !== -1 && dist < 4) ? 0.5 : 0.05;
+            
+            if (Math.random() < mutationChance) {
+                // Maintain density
+                if (glyphState[i] !== " " || Math.random() > 0.8) {
+                    glyphState[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+                } else {
+                    glyphState[i] = " ";
+                }
+            }
+        }
+    } else {
+        // Slow breathing/glitch when stopped
+        if (Math.random() > 0.8) {
+             const idx = Math.floor(Math.random() * GLYPH_WIDTH);
+             if (glyphState[idx] !== " ") {
+                 glyphState[idx] = Math.random() > 0.5 ? " " : GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+             } else if (Math.random() > 0.9) {
+                 glyphState[idx] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+             }
+        }
+        glyphPulsePos = -1;
+    }
+    
+    // Render with spans for color
+    let html = "";
+    for (let i = 0; i < GLYPH_WIDTH; i++) {
+        const char = glyphState[i];
+        let style = "";
+        
+        if (glyphPulsePos !== -1) {
+             const dist = Math.abs(i - glyphPulsePos);
+             if (dist < 3 && char !== " ") {
+                 style = `color:${glyphPulseColor}; text-shadow: 0 0 4px ${glyphPulseColor}`;
+             }
+        }
+        
+        // Use a class for the cell to enforce width
+        html += `<span class="glyph-cell" style="${style}">${char}</span>`;
+    }
+    divider.innerHTML = html;
+    
+    // Reset base color (handled by CSS mostly, but ensure no override)
+    divider.style.color = "";
+    divider.style.textShadow = "";
 }
 
 function renderVisualizerControls() {
@@ -2112,6 +2243,8 @@ function renderVisualizerControls() {
 
   refs.visualizerControls.innerHTML = "";
   
+  refs.visualizerControls.append(createDivider());
+
   const header = document.createElement("div");
   header.className = "viz-header";
   header.textContent = "VISUALIZER";
@@ -2239,7 +2372,7 @@ function renderVizMode1(data, width, height) {
     const chars = ["●", "○", "■", "□", "◆", "◇", "▲", "▼", "◀", "▶", "▄", "▀", "█", "░", "▒", "▓"];
     for (let x = 0; x < width; x += 1) {
       const idx = Math.floor((x / width) * data.length);
-      const sample = data[idx] || 0;
+      const sample = (data[idx] || 0) * 0.7; // Reduce intensity by scaling down amplitude
       const norm = Math.max(Math.min(sample, 1), -1);
       const y = Math.floor(((norm + 1) / 2) * (height - 1));
       const row = height - 1 - y;
@@ -2252,21 +2385,47 @@ function renderVizMode1(data, width, height) {
     return lines.map((cells) => cells.join("")).join("\n");
 }
 
+// Store previous bar heights for smoothing
+const prevBarHeights = [];
+
 function renderVizMode2(data, width, height) {
     // "Bars" / Spectrum-ish
     const lines = Array.from({ length: height }, () => Array(width).fill(" "));
     const barWidth = 2;
     const numBars = Math.floor(width / barWidth);
     
+    // Initialize previous heights if needed
+    if (prevBarHeights.length !== numBars) {
+        prevBarHeights.length = numBars;
+        prevBarHeights.fill(0);
+    }
+    
     for (let i = 0; i < numBars; i++) {
         const dataIdx = Math.floor((i / numBars) * data.length);
         const val = Math.abs(data[dataIdx]);
-        const barHeight = Math.floor(val * height);
+        let targetHeight = Math.floor(val * height);
         
-        for (let h = 0; h < barHeight; h++) {
+        // Smoothing / Decay logic
+        // If new height is lower than previous, decay slowly
+        // If new height is higher, jump up immediately (or smooth up too if desired, but usually attack is fast)
+        if (targetHeight < prevBarHeights[i]) {
+            // Decay factor (e.g., drop by 1 unit or 10% per frame)
+            // Let's try dropping by 0.5 units (accumulated) or just keep it simple with integers
+            // Since we render integers, we might need float storage for smoothness, but let's try simple integer decay
+            // If we want it "slower", we can just decrement by 1 every X frames, or use a float array.
+            // Let's use a float array for storage but render int.
+            prevBarHeights[i] -= 0.5; // Decay speed
+            if (prevBarHeights[i] < 0) prevBarHeights[i] = 0;
+        } else {
+            prevBarHeights[i] = targetHeight;
+        }
+        
+        const renderHeight = Math.floor(prevBarHeights[i]);
+        
+        for (let h = 0; h < renderHeight; h++) {
             const row = height - 1 - h;
             if (row >= 0 && row < height) {
-                const char = h === barHeight - 1 ? "▀" : "█";
+                const char = h === renderHeight - 1 ? "▀" : "█";
                 for (let w = 0; w < barWidth; w++) {
                     if (i * barWidth + w < width) {
                         lines[row][i * barWidth + w] = char;
@@ -2880,9 +3039,9 @@ function createDrumVoices(bus) {
     }).connect(bus),
     B: new Tone.MetalSynth({
       frequency: 3200,
-      envelope: { attack: 0.001, decay: 0.1, release: 2.5 }, // Increased release for more "reverb"
-      harmonicity: 5.1,
-      modulationIndex: 64, // More complex spectrum
+      envelope: { attack: 0.001, decay: 0.2, release: 1.5 }, // Short decay for "quick" hits, long release for ring
+      harmonicity: 4.0, // Reduced for less brightness
+      modulationIndex: 40, // Reduced for less brightness
       resonance: 3000,
       octaves: 1.5,
       volume: -5 // Lowered volume
@@ -3068,12 +3227,14 @@ function playDrum(token, time, velocity) {
   voice.volume.value = db;
   
   if (token === "B") {
-      // Double trigger for "Jing-Jing" effect
-      // First hit
+      // Quad trigger for "Jing-Jing... Jing-Jing" effect
+      // First pair
       voice.triggerAttackRelease(pitch, duration, time);
-      // Second hit (approx 120ms later)
       try {
-        voice.triggerAttackRelease(pitch, duration, time + 0.12);
+        voice.triggerAttackRelease(pitch, duration, time + 0.05);
+        // Second pair (approx 150ms later)
+        voice.triggerAttackRelease(pitch, duration, time + 0.15);
+        voice.triggerAttackRelease(pitch, duration, time + 0.20);
       } catch (e) {
         // Ignore overlap errors during rapid preview
       }
@@ -3303,6 +3464,10 @@ function applySnapshot(snapshot) {
   // Handle both new (Multi-Pattern) and old (Single-Pattern) formats
   if (snapshot.patterns) {
       state.patterns = snapshot.patterns;
+      // Ensure 4 patterns
+      while (state.patterns.length < 4) {
+          state.patterns.push(buildDefaultPatternSet());
+      }
       state.patternEnable = snapshot.patternEnable || [true, false, false, false];
   } else if (snapshot.pattern) {
       state.patterns = [
@@ -3368,6 +3533,7 @@ function applySnapshot(snapshot) {
 function resetScene() {
   state.tempo = 120;
   state.swing = 0;
+  Tone.Transport.swing = 0;
   state.scaleId = scaleOptions[0].id;
   
   // Force reset of all patterns
@@ -3476,7 +3642,11 @@ function handleGlobalKeyDown(event) {
               const step = state.pattern[channel][index];
               if (step) {
                   step.velocity = 0;
-                  // We keep the note value but set velocity to 0
+                  step.note = null;
+                  step.degree = null;
+                  step.direction = 0;
+                  step.decay = DEFAULT_STEP_DECAY;
+                  step.mod = 0;
                   renderSynthButtonContent(refs.stepButtons.synth[channel][index], channel, index);
               }
           }
@@ -4225,7 +4395,8 @@ function handleNoteKeyInput(spec, channelKey, index) {
   
   previewSynthStep(channelKey, index);
 
-  // Auto-advance cursor
+  // Auto-advance cursor REMOVED per user request
+  /*
   const nextIndex = (index + 1) % SYNTH_STEPS;
   
   let nextBtn;
@@ -4240,6 +4411,7 @@ function handleNoteKeyInput(spec, channelKey, index) {
   if (nextBtn) {
     nextBtn.focus();
   }
+  */
 }
 
 function captureVisualizerSnapshot() {

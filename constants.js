@@ -37,7 +37,7 @@ export const DEFAULT_NOTE_INDEX = 36;
 export const DEFAULT_STEP_VELOCITY = 8;
 export const KNOB_DRAG_STEP_PX = 6;
 export const VISUALIZER_WIDTH = 30;
-export const VISUALIZER_HEIGHT = 20;
+export const VISUALIZER_HEIGHT = 34;
 export const KEYBOARD_NOTE_MAP = {
   a: { semitone: 0, octave: 0 },
   w: { semitone: 1, octave: 0 },
@@ -101,7 +101,7 @@ export const drumNoteMap = {
   P: { pitch: "C3", duration: "8n" },
   C: { pitch: "E6", duration: "8n" }, // Using Bell sound (J) for Clap
   J: { pitch: "E6", duration: "8n" },
-  B: { pitch: "G6", duration: "8n" }
+  B: { pitch: "F#6", duration: "8n" }
 };
 
 export const placeholderUsers = [

@@ -297,7 +297,7 @@ pre, code, kbd, samp {
 
 #visualizer-shell {
   margin-top: 0;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   padding: 0.35rem;
   align-self: stretch;
   display: flex;
@@ -305,6 +305,8 @@ pre, code, kbd, samp {
   box-shadow: none !important;
   position: relative;
   overflow: hidden;
+  flex: 1;
+  min-height: 200px;
 }
 
 #theme-controls {
@@ -339,14 +341,17 @@ pre, code, kbd, samp {
 }
 
 #visualizer-body {
-  display: block; /* Ensure block layout to prevent horizontal stacking */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   white-space: pre;
   font-size: 0.75rem;
   line-height: 0.85rem;
   color: var(--c64-purple);
   width: 100%;
   max-width: 100%;
-  height: 275px; /* Fixed height to fit 20 lines (approx 20 * 14px) */
+  height: 100%; /* Fill the shell */
   overflow: hidden;
   text-align: center; /* Center horizontally */
   margin-left: auto;
@@ -379,7 +384,7 @@ pre, code, kbd, samp {
 #info-body {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
   height: 100%;
   border-color: var(--c64-cyan);
   position: relative;
@@ -447,7 +452,7 @@ pre, code, kbd, samp {
   width: 100%;
   height: 2px;
   background: var(--c64-cyan);
-  margin: 0.75rem 0;
+  margin: 0.6rem 0;
   border: none;
 }
 
@@ -559,7 +564,7 @@ button:focus-visible {
 .track-body-row {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
+  gap: 0.25rem;
 }
 
 .track-art {
@@ -575,7 +580,7 @@ button:focus-visible {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  margin-right: 1ch; /* Add spacing to push grid right */
+  /* margin-right: 1ch; Removed to align with drums */
 }
 
 .track-header {
@@ -1103,7 +1108,7 @@ body.theme-bw #load-panel {
 /* Theme Controls Fixed Position */
 #theme-controls-fixed {
   position: absolute;
-  bottom: 2.5rem;
+  bottom: 1rem;
   right: 2.5rem;
   display: flex;
   gap: 0.5rem;
@@ -1173,4 +1178,28 @@ body.theme-bw #load-panel {
 .slot-meta {
   color: var(--c64-cyan);
   font-size: 0.7rem;
+}
+
+.glyph-divider {
+  color: var(--c64-purple);
+  font-family: "C64Pro", monospace;
+  font-size: 1rem;
+  line-height: 1rem;
+  margin-top: -0.5rem;
+  margin-bottom: 0.25rem;
+  overflow: hidden;
+  width: 100%;
+  height: 1rem;
+  opacity: 0.8;
+  text-shadow: 0 0 4px var(--c64-purple);
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+}
+
+.glyph-cell {
+  width: 1ch;
+  text-align: center;
+  flex-shrink: 0;
+  display: block;
 }
