@@ -408,35 +408,8 @@ function renderTransport() {
     
     const exportBtn = createButton("[EXPORT WAV]", "transport-btn", () => handleExportMp3());
     exportBtn.style.color = "var(--c64-purple)"; 
-
-    const jsonBtn = createButton("[JSON]", "transport-btn", () => {
-        const snapshot = {
-            patterns: state.patterns,
-            patternEnable: state.patternEnable,
-            tempo: state.tempo,
-            swing: state.swing,
-            trackName: state.trackName,
-            currentUser: state.currentUser,
-            scaleId: state.scaleId
-        };
-        const jsonStr = JSON.stringify(snapshot);
-        console.log(jsonStr);
-        
-        // Try to copy to clipboard
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(jsonStr).then(() => {
-                alert("Song data copied to clipboard! Paste it into the chat.");
-            }).catch(err => {
-                console.error("Clipboard failed", err);
-                alert("Could not copy to clipboard. Please copy the JSON from the console manually.");
-            });
-        } else {
-            alert("Clipboard API not available. Please copy the JSON from the console manually.");
-        }
-    });
-    jsonBtn.style.color = "var(--c64-cyan)";
     
-    fileRow.append(saveBtn, loadBtn, helpBtn, resetBtn, exportBtn, jsonBtn);
+    fileRow.append(saveBtn, loadBtn, helpBtn, resetBtn, exportBtn);
     refs.transportBody.append(fileRow);
 
     // Row 3: Demo Buttons
@@ -1605,7 +1578,6 @@ function renderHelp() {
     "-------------",
     "CMD+UP/DN   :: Pitch +/- 1 semitone",
     "CMD+SH+UP/DN:: Pitch +/- 1 octave",
-    "SH+UP/DN    :: Slide direction (v · ^)",
     "ALT+UP/DN   :: Pitch +/- 1 semitone",
     "ALT+CLICK   :: Cycle Arp Chord",
     "",
@@ -1625,8 +1597,48 @@ function renderHelp() {
 
   const pre = document.createElement("pre");
   pre.style.margin = "0";
+  pre.style.whiteSpace = "pre-wrap";
   pre.textContent = content.join("\n");
   refs.helpBody.append(pre);
+
+  // Expert Mode JSON Export
+  const expertDiv = document.createElement("div");
+  expertDiv.style.marginTop = "1rem";
+  expertDiv.style.borderTop = "1px dashed var(--c64-purple)";
+  expertDiv.style.paddingTop = "0.5rem";
+  
+  const expertLabel = document.createElement("span");
+  expertLabel.textContent = "Expert mode: ";
+  
+  const jsonBtn = createButton("[export as json]", "transport-btn", () => {
+      const snapshot = {
+          patterns: state.patterns,
+          patternEnable: state.patternEnable,
+          tempo: state.tempo,
+          swing: state.swing,
+          trackName: state.trackName,
+          currentUser: state.currentUser,
+          scaleId: state.scaleId,
+          visualizerMode: state.visualizerMode
+      };
+      const jsonStr = JSON.stringify(snapshot);
+      console.log(jsonStr);
+      
+      if (navigator.clipboard) {
+          navigator.clipboard.writeText(jsonStr).then(() => {
+              alert("Song data copied to clipboard!");
+          }).catch(err => {
+              console.error("Clipboard failed", err);
+              alert("Could not copy to clipboard. Check console.");
+          });
+      } else {
+          alert("Clipboard API not available. Check console.");
+      }
+  });
+  jsonBtn.style.color = "var(--c64-cyan)";
+  
+  expertDiv.append(expertLabel, jsonBtn);
+  refs.helpBody.append(expertDiv);
 }
 
 function openSlotOverlay() {
@@ -2500,8 +2512,8 @@ function updateVisualizer() {
   } else {
       try {
           switch (state.visualizerMode) {
-              case 1: body = renderVizMode2(data, width, height); break; // Swapped: Mode 1 is now Bars
-              case 2: body = renderVizMode1(data, width, height); break; // Swapped: Mode 2 is now Oscilloscope
+              case 1: body = renderVizMode2(data, width, height); break;
+              case 2: body = renderVizMode1(data, width, height); break;
               case 3: body = renderVizMode3(data, width, height, metrics); break;
               case 4: body = renderVizMode4(data, width, height, metrics); break;
               case 5: body = renderVizMode5(data, width, height); break;
@@ -3939,16 +3951,6 @@ function handleGlobalKeyDown(event) {
       event.preventDefault();
       const delta = event.key === "ArrowUp" ? 1 : -1;
       setStepSemitone(target.dataset.channel, Number(target.dataset.index), getStepSemitone(getSynthStep(target.dataset.channel, Number(target.dataset.index)), target.dataset.channel) + delta);
-      return;
-    }
-    if (
-      event.shiftKey &&
-      target.dataset.channel !== "arp" &&
-      (event.key === "ArrowUp" || event.key === "ArrowDown")
-    ) {
-      event.preventDefault();
-      const delta = event.key === "ArrowUp" ? 1 : -1;
-      adjustSynthDirection(target.dataset.channel, Number(target.dataset.index), delta);
       return;
     }
   } else if (state.activeTrack) {
