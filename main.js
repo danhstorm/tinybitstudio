@@ -304,6 +304,7 @@ function renderTransport() {
         row.style.alignItems = "center";
         row.style.gap = "0.5ch";
         row.style.fontSize = "0.8rem";
+        row.style.width = "100%"; // Ensure row takes full width
         
         const labelSpan = document.createElement("span");
         // Use pre-wrap to preserve spaces for alignment
@@ -320,7 +321,8 @@ function renderTransport() {
         input.value = value;
         input.maxLength = 24;
         input.className = "bare-input";
-        input.style.width = "16ch";
+        input.style.flex = "1"; // Take available space
+        input.style.marginRight = "2ch";
         input.style.textAlign = "left";
         input.style.color = "var(--c64-orange)"; 
         input.addEventListener("input", (e) => {
@@ -341,7 +343,7 @@ function renderTransport() {
     });
     
     // Song Input (Aligned)
-    const songRow = createInputRow("SONG:  ", state.trackName, (val) => {
+    const songRow = createInputRow("TITLE: ", state.trackName, (val) => {
         state.trackName = val;
     });
 
@@ -436,8 +438,16 @@ function renderTransport() {
     // Row 3: Demo Buttons
     const demoRow = document.createElement("div");
     demoRow.className = "demo-btn-row";
+    demoRow.style.alignItems = "center";
+
+    const demoLabel = document.createElement("span");
+    demoLabel.textContent = "DEMOS:";
+    demoLabel.style.color = "var(--c64-cyan)";
+    demoLabel.style.fontSize = "0.8rem";
+    demoLabel.style.marginRight = "0.5rem";
+    demoRow.append(demoLabel);
     
-    ["DEMO 1", "DEMO 2", "DEMO 3"].forEach((label, idx) => {
+    ["1", "2", "3", "4"].forEach((label, idx) => {
         const btn = document.createElement("button");
         btn.className = "demo-btn-box";
         btn.textContent = label;
@@ -445,7 +455,7 @@ function renderTransport() {
         demoRow.append(btn);
     });
     
-    refs.transportBody.append(demoRow);
+    // refs.transportBody.append(demoHeader, demoRow); // Removed separate header append
 
     // Row 3: Transport Controls
     const transportRow = document.createElement("div");
@@ -506,7 +516,8 @@ function renderTransport() {
   
     swingRow.append(decSwing, swingVal, incSwing);
 
-    refs.transportBody.append(titleRow, createDivider(), fileRow, createDivider(), demoRow, createDivider(), transportRow, createDivider(), tempoRow, swingRow);
+    // No divider between Tempo and Swing to save space
+    refs.transportBody.append(titleRow, createDivider(), fileRow, createDivider(), transportRow, createDivider(), tempoRow, swingRow, createDivider(), demoRow);
   } catch (e) {
     console.error("Render Transport Error:", e);
     refs.transportBody.innerHTML += `<div style="color:red">Transport Error: ${e.message}</div>`;
@@ -762,8 +773,8 @@ function renderDrumBox() {
     const delaySlider = document.createElement("input");
     delaySlider.type = "range";
     delaySlider.min = "0";
-    delaySlider.max = "0.8"; // Limit feedback
-    delaySlider.step = "0.05";
+    delaySlider.max = "0.2"; // Limit feedback
+    delaySlider.step = "0.01";
     delaySlider.className = "track-slider"; // Use track-slider class
     delaySlider.value = state.pattern.channelSettings.drums.delayFeedback || 0;
     // Remove inline styles that conflict with class
@@ -2106,6 +2117,7 @@ function startVisualizerTicker() {
 }
 
 let glyphState = [];
+let glyphState2 = [];
 const GLYPH_WIDTH = 80; 
 const GLYPH_CHARS = ["█", "▓", "▒", "░", "■", "▀", "▄", "▌", "▐", "▖", "▗", "▘", "▙", "▚", "▛", "▜", "▝", "▞", "▟"];
 let lastGlyphUpdate = 0;
@@ -2126,12 +2138,32 @@ function initGlyphDivider() {
     // This places it at the top of the synth panel, effectively between drums and synth
     synthBody.parentNode.insertBefore(divider, synthBody);
     
+    // Move to be a direct child of workspace to avoid clipping?
+    // Or just ensure synth-panel doesn't clip.
+    // The user asked to put it "over the drummer boy frame".
+    // Let's try moving it to the drum panel instead, at the bottom.
+    const drumPanel = document.getElementById("drum-panel");
+    if (drumPanel) {
+        drumPanel.appendChild(divider);
+        // Reset margins since it's now at the bottom of the drum panel
+        divider.style.marginTop = "0.5rem";
+        divider.style.marginBottom = "-1rem"; // Pull it down slightly
+        divider.style.zIndex = "100";
+        divider.style.position = "relative";
+    } else {
+        synthBody.parentNode.insertBefore(divider, synthBody);
+    }
+    
     // Initialize state
     glyphState = Array(GLYPH_WIDTH).fill(" ");
+    glyphState2 = Array(GLYPH_WIDTH).fill(" ");
     // Fill with random initial noise
     for (let i = 0; i < GLYPH_WIDTH; i++) {
         if (Math.random() > 0.7) {
             glyphState[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+        }
+        if (Math.random() > 0.7) {
+            glyphState2[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
         }
     }
 }
@@ -2145,6 +2177,12 @@ function updateGlyphDivider() {
         glyphState = Array(GLYPH_WIDTH).fill(" ");
         for (let i = 0; i < GLYPH_WIDTH; i++) {
              if (Math.random() > 0.7) glyphState[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+        }
+    }
+    if (!glyphState2 || glyphState2.length !== GLYPH_WIDTH) {
+        glyphState2 = Array(GLYPH_WIDTH).fill(" ");
+        for (let i = 0; i < GLYPH_WIDTH; i++) {
+             if (Math.random() > 0.7) glyphState2[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
         }
     }
     
@@ -2173,50 +2211,61 @@ function updateGlyphDivider() {
         }
 
         // Mutate in place (no shifting)
-        for (let i = 0; i < GLYPH_WIDTH; i++) {
-            // Higher mutation chance near pulse
-            const dist = Math.abs(i - glyphPulsePos);
-            const mutationChance = (glyphPulsePos !== -1 && dist < 4) ? 0.5 : 0.05;
-            
-            if (Math.random() < mutationChance) {
-                // Maintain density
-                if (glyphState[i] !== " " || Math.random() > 0.8) {
-                    glyphState[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
-                } else {
-                    glyphState[i] = " ";
+        const mutate = (arr) => {
+            for (let i = 0; i < GLYPH_WIDTH; i++) {
+                // Higher mutation chance near pulse
+                const dist = Math.abs(i - glyphPulsePos);
+                const mutationChance = (glyphPulsePos !== -1 && dist < 4) ? 0.5 : 0.05;
+                
+                if (Math.random() < mutationChance) {
+                    // Maintain density
+                    if (arr[i] !== " " || Math.random() > 0.8) {
+                        arr[i] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+                    } else {
+                        arr[i] = " ";
+                    }
                 }
             }
-        }
+        };
+        mutate(glyphState);
+        mutate(glyphState2);
+
     } else {
         // Slow breathing/glitch when stopped
-        if (Math.random() > 0.8) {
-             const idx = Math.floor(Math.random() * GLYPH_WIDTH);
-             if (glyphState[idx] !== " ") {
-                 glyphState[idx] = Math.random() > 0.5 ? " " : GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
-             } else if (Math.random() > 0.9) {
-                 glyphState[idx] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
-             }
-        }
+        const slowMutate = (arr) => {
+            if (Math.random() > 0.8) {
+                 const idx = Math.floor(Math.random() * GLYPH_WIDTH);
+                 if (arr[idx] !== " ") {
+                     arr[idx] = Math.random() > 0.5 ? " " : GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+                 } else if (Math.random() > 0.9) {
+                     arr[idx] = GLYPH_CHARS[Math.floor(Math.random() * GLYPH_CHARS.length)];
+                 }
+            }
+        };
+        slowMutate(glyphState);
+        slowMutate(glyphState2);
         glyphPulsePos = -1;
     }
     
     // Render with spans for color
-    let html = "";
-    for (let i = 0; i < GLYPH_WIDTH; i++) {
-        const char = glyphState[i];
-        let style = "";
-        
-        if (glyphPulsePos !== -1) {
-             const dist = Math.abs(i - glyphPulsePos);
-             if (dist < 3 && char !== " ") {
-                 style = `color:${glyphPulseColor}; text-shadow: 0 0 4px ${glyphPulseColor}`;
-             }
+    const renderRow = (arr) => {
+        let html = "";
+        for (let i = 0; i < GLYPH_WIDTH; i++) {
+            const char = arr[i];
+            let style = "";
+            
+            if (glyphPulsePos !== -1) {
+                 const dist = Math.abs(i - glyphPulsePos);
+                 if (dist < 3 && char !== " ") {
+                     style = `color:${glyphPulseColor}; text-shadow: 0 0 4px ${glyphPulseColor}`;
+                 }
+            }
+            html += `<span class="glyph-cell" style="${style}">${char}</span>`;
         }
-        
-        // Use a class for the cell to enforce width
-        html += `<span class="glyph-cell" style="${style}">${char}</span>`;
-    }
-    divider.innerHTML = html;
+        return `<div class="glyph-row">${html}</div>`;
+    };
+
+    divider.innerHTML = renderRow(glyphState) + renderRow(glyphState2);
     
     // Reset base color (handled by CSS mostly, but ensure no override)
     divider.style.color = "";
@@ -2243,15 +2292,17 @@ function renderVisualizerControls() {
 
   refs.visualizerControls.innerHTML = "";
   
-  refs.visualizerControls.append(createDivider());
+  // refs.visualizerControls.append(createDivider()); // Removed divider as requested
 
   const header = document.createElement("div");
   header.className = "viz-header";
   header.textContent = "VISUALIZER";
+  header.style.marginTop = "1rem"; // Add blank space instead
   refs.visualizerControls.append(header);
   
   const grid = document.createElement("div");
   grid.className = "viz-grid";
+  grid.style.marginTop = "0.5rem"; // Move down slightly
   
   for (let i = 1; i <= 6; i++) {
     const btn = document.createElement("button");
@@ -2402,7 +2453,8 @@ function renderVizMode2(data, width, height) {
     
     for (let i = 0; i < numBars; i++) {
         const dataIdx = Math.floor((i / numBars) * data.length);
-        const val = Math.abs(data[dataIdx]);
+        // Scale down to prevent clipping and keep peaks lower
+        const val = Math.abs(data[dataIdx]) * 0.8; 
         let targetHeight = Math.floor(val * height);
         
         // Smoothing / Decay logic
@@ -3839,7 +3891,23 @@ function playActiveTrackNote(spec) {
     const velocity = velocityToGain(DEFAULT_STEP_VELOCITY);
     
     if (channelKey === "arp") {
-      audio.arpVoice.triggerAttackRelease(note, ARP_DURATION, time, velocity);
+      // Use current decay setting for Arp
+      const trackDecay = state.pattern.channelSettings?.arp?.decay ?? DEFAULT_ARP_DECAY;
+      const maxDecay = TRACK_MAX_DECAY.arp ?? 2.0;
+      const duration = decayToSeconds(trackDecay, maxDecay);
+      
+      // If we want to play the actual Arp pattern (chord), we'd need to trigger the Arp logic.
+      // But usually "playing the keyboard" on an Arp track just plays the synth voice with the Arp settings.
+      // However, the user said "play it just like it is with the current decay setting and arpeggiator".
+      // If they mean the arpeggiator pattern, that's complex because a single key press is just one note.
+      // Usually, playing a key on an Arp track plays that note using the Arp's synth voice.
+      // Let's ensure we use the correct duration/decay.
+      
+      // Also ensure the waveform is correct (it should be handled by applyWaveformToVoices, but let's be sure)
+      // audio.arpVoice is the synth.
+      
+      audio.arpVoice.envelope.release = duration;
+      audio.arpVoice.triggerAttackRelease(note, duration, time, velocity);
       return;
     }
     
