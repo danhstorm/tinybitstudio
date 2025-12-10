@@ -440,11 +440,13 @@ function renderTransport() {
     const transportRow = document.createElement("div");
     transportRow.className = "control-row transport-row";
     
-    const playAllBtn = createButton("PLAY SONG", "transport-btn boxed-btn orange-btn", () => {
+    const playAllBtn = createButton("▶▶▶▶", "transport-btn boxed-btn orange-btn", () => {
       handleStop();
       handlePlay('song');
     });
     playAllBtn.id = "transport-play-all-btn";
+    playAllBtn.style.letterSpacing = "-3px";
+    playAllBtn.style.fontSize = "0.8rem";
 
     const playBtn = createButton("PLAY", "transport-btn boxed-btn orange-btn", () => {
       handleStop();
@@ -455,18 +457,7 @@ function renderTransport() {
     const stopBtn = createButton("STOP", "transport-btn boxed-btn orange-btn stop-btn", () => handleStop());
     stopBtn.id = "transport-stop-btn";
     
-    const lineBtn = createButton("|", "transport-btn boxed-btn", () => {
-        if (state.focusedStep) {
-            togglePatternEndMarker(Number(state.focusedStep.index));
-        }
-    });
-    lineBtn.id = "transport-line-btn";
-    lineBtn.style.color = "white";
-    lineBtn.style.marginLeft = "0.5rem";
-    
-    transportRow.append(playAllBtn, playBtn, stopBtn, lineBtn);
-
-    // Row 4: Tempo
+    transportRow.append(playAllBtn, playBtn, stopBtn);    // Row 4: Tempo
     const tempoRow = document.createElement("div");
     tempoRow.className = "control-row transport-row";
     const tempoLabel = document.createElement("span");
@@ -1243,8 +1234,10 @@ function renderThemeControls() {
     playSongBtn.id = "global-play-song-btn";
     playSongBtn.className = "theme-transport-btn";
     playSongBtn.title = "Play Song";
-    // Two play symbols connected by a line
-    playSongBtn.innerHTML = "▶<span style='font-size: 0.9em; margin: 0 -5px; vertical-align: 0px;'>→</span>▶";
+    // Four play symbols closely connected
+    playSongBtn.textContent = "▶▶▶▶";
+    playSongBtn.style.letterSpacing = "-4px"; // Tight spacing
+    playSongBtn.style.marginRight = "4px"; // Adjust spacing
     playSongBtn.addEventListener("click", () => {
         handleStop();
         handlePlay('song');
@@ -1268,6 +1261,32 @@ function renderThemeControls() {
     stopBtn.addEventListener("click", () => {
         handleStop();
     });
+
+    // Pattern Break Button
+    const breakBtn = document.createElement("button");
+    breakBtn.id = "global-break-btn";
+    breakBtn.className = "theme-transport-btn";
+    breakBtn.title = "Toggle Pattern Break (Z)";
+    breakBtn.textContent = "|";
+    breakBtn.style.color = "white";
+    breakBtn.style.marginLeft = "0.5rem";
+    
+    // Custom hover/active logic
+    breakBtn.addEventListener("mouseenter", () => {
+        if (breakBtn.dataset.active !== "true") {
+            breakBtn.style.color = "var(--c64-green)";
+        }
+    });
+    breakBtn.addEventListener("mouseleave", () => {
+        if (breakBtn.dataset.active !== "true") {
+            breakBtn.style.color = "white";
+        }
+    });
+    breakBtn.addEventListener("click", () => {
+        if (state.focusedStep) {
+            togglePatternEndMarker(Number(state.focusedStep.index));
+        }
+    });
     
     const label = document.createElement("span");
     label.className = "theme-label";
@@ -1289,7 +1308,7 @@ function renderThemeControls() {
         document.body.classList.add("theme-bw");
     });
     
-    container.append(playSongBtn, playBtn, stopBtn, label, stdBtn, bwBtn);
+    container.append(playSongBtn, playBtn, stopBtn, breakBtn, label, stdBtn, bwBtn);
     return container;
 }
 
@@ -1551,6 +1570,7 @@ function toggleHelp() {
   if (!refs.helpPanel) return;
   const isHidden = refs.helpPanel.style.display === "none";
   const btn = document.getElementById("transport-help-btn");
+  const themeControls = document.getElementById("theme-controls-fixed");
   
   if (isHidden) {
       // Show Help, Hide others
@@ -1558,6 +1578,7 @@ function toggleHelp() {
       if (refs.drumBody) refs.drumBody.closest("section").style.display = "none";
       if (refs.synthBody) refs.synthBody.closest("section").style.display = "none";
       if (refs.loadPanel) refs.loadPanel.style.display = "none";
+      if (themeControls) themeControls.style.display = "none";
       renderHelp();
       if (btn) btn.style.color = "var(--c64-green)";
   } else {
@@ -1565,6 +1586,7 @@ function toggleHelp() {
       refs.helpPanel.style.display = "none";
       if (refs.drumBody) refs.drumBody.closest("section").style.display = "flex";
       if (refs.synthBody) refs.synthBody.closest("section").style.display = "flex";
+      if (themeControls) themeControls.style.display = "flex";
       if (btn) btn.style.color = "var(--c64-purple)";
   }
 }
@@ -1579,6 +1601,7 @@ function renderHelp() {
   
   const title = document.createElement("span");
   title.textContent = "HELP & COMMANDS";
+  title.style.color = "var(--c64-orange)";
   
   const closeBtn = createButton("[close]", "transport-btn", () => toggleHelp());
   
@@ -1614,19 +1637,16 @@ function renderHelp() {
   const pre = document.createElement("pre");
   pre.style.margin = "0";
   pre.style.whiteSpace = "pre-wrap";
+  pre.style.color = "#fff";
   pre.textContent = content.join("\n");
   refs.helpBody.append(pre);
 
   // Expert Mode JSON Export
   const expertDiv = document.createElement("div");
   expertDiv.style.marginTop = "1rem";
-  expertDiv.style.borderTop = "1px dashed var(--c64-purple)";
   expertDiv.style.paddingTop = "0.5rem";
   
-  const expertLabel = document.createElement("span");
-  expertLabel.textContent = "Expert mode: ";
-  
-  const jsonBtn = createButton("[export as json]", "transport-btn", () => {
+  const jsonBtn = createButton("[json]", "transport-btn", () => {
       const snapshot = {
           patterns: state.patterns,
           patternEnable: state.patternEnable,
@@ -1653,7 +1673,7 @@ function renderHelp() {
   });
   jsonBtn.style.color = "var(--c64-cyan)";
   
-  expertDiv.append(expertLabel, jsonBtn);
+  expertDiv.append(jsonBtn);
   refs.helpBody.append(expertDiv);
 }
 
@@ -1850,10 +1870,12 @@ function togglePatternEndMarker(index) {
   renderDrumBox();
   renderSynthStack();
   
-  const lineBtn = document.getElementById("transport-line-btn");
-  if (lineBtn && state.focusedStep) {
+  const breakBtn = document.getElementById("global-break-btn");
+  if (breakBtn && state.focusedStep) {
       const isMarker = state.pattern.length === state.focusedStep.index;
-      lineBtn.style.color = isMarker ? "var(--c64-orange)" : "white";
+      const color = isMarker ? "var(--c64-orange)" : "white";
+      breakBtn.style.color = color;
+      breakBtn.dataset.active = isMarker ? "true" : "false";
   }
 }
 
@@ -4587,6 +4609,15 @@ function setFocusedStep(channelKey, index, laneKey = null, subtype = null) {
       setActiveTrack(channelKey);
   }
   
+  // Update Pattern Break Button
+  const breakBtn = document.getElementById("global-break-btn");
+  if (breakBtn) {
+      const isMarker = state.pattern.length === index;
+      const color = isMarker ? "var(--c64-orange)" : "white";
+      breakBtn.style.color = color;
+      breakBtn.dataset.active = isMarker ? "true" : "false";
+  }
+
   // Update UI to reflect focus
   document.querySelectorAll(".focused-step").forEach(el => el.classList.remove("focused-step"));
   
@@ -4611,7 +4642,10 @@ function setFocusedStep(channelKey, index, laneKey = null, subtype = null) {
   const lineBtn = document.getElementById("transport-line-btn");
   if (lineBtn) {
       const isMarker = state.pattern.length === index;
-      lineBtn.style.color = isMarker ? "var(--c64-orange)" : "white";
+      const color = isMarker ? "var(--c64-orange)" : "white";
+      lineBtn.style.color = color;
+      lineBtn.style.borderColor = color;
+      lineBtn.dataset.active = isMarker ? "true" : "false";
   }
   
   updateKnobDisplays();

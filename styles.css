@@ -204,6 +204,7 @@ pre, code, kbd, samp {
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 #load-panel {
