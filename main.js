@@ -3718,14 +3718,14 @@ async function handleSave(btn) {
   try {
       await db.saveSong(snapshot);
       if (btn) {
-          const originalText = btn.textContent;
+          const originalText = "[SAVE]"; // Hardcoded to ensure reset
           btn.textContent = "SAVED!";
           // Use a bright blue color for feedback
           btn.style.color = "var(--c64-cyan)"; 
           setTimeout(() => {
               btn.textContent = originalText;
               btn.style.color = "var(--c64-purple)";
-          }, 3000);
+          }, 2000);
       } else {
           alert("SONG SAVED TO DATABASE!");
       }
