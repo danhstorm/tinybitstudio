@@ -440,13 +440,11 @@ function renderTransport() {
     const transportRow = document.createElement("div");
     transportRow.className = "control-row transport-row";
     
-    const playAllBtn = createButton("▶▶▶▶", "transport-btn boxed-btn orange-btn", () => {
+    const playAllBtn = createButton("PLAY SONG", "transport-btn boxed-btn orange-btn", () => {
       handleStop();
       handlePlay('song');
     });
     playAllBtn.id = "transport-play-all-btn";
-    playAllBtn.style.letterSpacing = "-3px";
-    playAllBtn.style.fontSize = "0.8rem";
 
     const playBtn = createButton("PLAY", "transport-btn boxed-btn orange-btn", () => {
       handleStop();
@@ -1100,6 +1098,12 @@ function renderSynthStack() {
             btnType.dataset.channel = track.key;
             btnType.dataset.index = index.toString();
             
+            if (state.pattern.length && index === state.pattern.length) {
+                // Add marker to the buttons directly to ensure visibility
+                btnNote.classList.add("step-marker-end");
+                btnType.classList.add("step-marker-end");
+            }
+            
             if (state.focusedStep?.channel === track.key && state.focusedStep?.index === index && state.focusedStep?.subtype === "type") {
                 btnType.classList.add("focused-step");
             }
@@ -1238,6 +1242,8 @@ function renderThemeControls() {
     playSongBtn.textContent = "▶▶▶▶";
     playSongBtn.style.letterSpacing = "-4px"; // Tight spacing
     playSongBtn.style.marginRight = "4px"; // Adjust spacing
+    playSongBtn.addEventListener("mouseenter", () => playSongBtn.style.color = "var(--c64-green)");
+    playSongBtn.addEventListener("mouseleave", () => playSongBtn.style.color = "");
     playSongBtn.addEventListener("click", () => {
         handleStop();
         handlePlay('song');
@@ -1248,6 +1254,8 @@ function renderThemeControls() {
     playBtn.className = "theme-transport-btn";
     playBtn.title = "Play Pattern";
     playBtn.textContent = "▶";
+    playBtn.addEventListener("mouseenter", () => playBtn.style.color = "var(--c64-green)");
+    playBtn.addEventListener("mouseleave", () => playBtn.style.color = "");
     playBtn.addEventListener("click", () => {
         handleStop();
         handlePlay('pattern');
@@ -1258,6 +1266,8 @@ function renderThemeControls() {
     stopBtn.className = "theme-transport-btn stop-btn";
     stopBtn.title = "Stop";
     stopBtn.textContent = "■";
+    stopBtn.addEventListener("mouseenter", () => stopBtn.style.color = "var(--c64-orange)");
+    stopBtn.addEventListener("mouseleave", () => stopBtn.style.color = "");
     stopBtn.addEventListener("click", () => {
         handleStop();
     });
@@ -1270,11 +1280,20 @@ function renderThemeControls() {
     breakBtn.textContent = "|";
     breakBtn.style.color = "white";
     breakBtn.style.marginLeft = "0.5rem";
+    breakBtn.style.fontSize = "1rem"; 
+    breakBtn.style.fontWeight = "bold";
+    // Make the line shorter visually
+    const span = document.createElement("span");
+    span.textContent = "|";
+    span.style.display = "inline-block";
+    span.style.transform = "scaleY(0.7)";
+    breakBtn.textContent = "";
+    breakBtn.append(span);
     
     // Custom hover/active logic
     breakBtn.addEventListener("mouseenter", () => {
         if (breakBtn.dataset.active !== "true") {
-            breakBtn.style.color = "var(--c64-green)";
+            breakBtn.style.color = "var(--c64-orange)";
         }
     });
     breakBtn.addEventListener("mouseleave", () => {
@@ -1611,22 +1630,22 @@ function renderHelp() {
   const content = [
     "COMMANDS & SHORTCUTS",
     "--------------------",
-    "ARROWS      :: Move cursor",
-    "SPACE       :: Toggle step / Cycle levels",
-    "ENTER       :: Play / Stop",
-    "Z           :: Set Pattern End Marker",
+    "ARROWS       :: Move cursor",
+    "SPACE        :: Toggle step / Cycle levels",
+    "ENTER        :: Play / Stop",
+    "SHIFT+ENTER  :: Play All",
+    "Z            :: Set Pattern End Marker",
     "",
     "SYNTH EDITING",
     "-------------",
-    "CMD/SH+UP/DN:: Pitch +/- 1 semitone",
-    "ALT+UP/DN   :: Pitch +/- 1 octave",
-    "ALT+CLICK   :: Cycle Arp Chord",
+    "CMD/SH+UP/DN :: Pitch +/- 1 semitone",
+    "ALT+UP/DN    :: Pitch +/- 1 octave",
     "",
     "KEYBOARD",
     "--------",
-    "A...L, W...P:: Play notes",
-    "[ / ]       :: Change Octave",
-    "0-9         :: Set volume of selected note",
+    "A...L, W...P :: Play notes",
+    "[ / ]        :: Change Octave",
+    "0-9          :: Set volume of selected note",
     "",
     "SAVING & EXPORTING",
     "------------------",
@@ -3960,10 +3979,6 @@ function handleGlobalKeyDown(event) {
           event.preventDefault();
           toggleHelp();
       }
-      // Don't block other keys if help is open, but maybe we should?
-      // For now, let's allow navigation even if help is open, or maybe not.
-      // User said "everything we see on it is just pretty static and stationary".
-      // If help replaces the grid, we probably can't navigate the grid.
       return; 
   }
 
@@ -4723,7 +4738,7 @@ function handleNoteKeyInput(spec, channelKey, index) {
   
   previewSynthStep(channelKey, index);
 
-  // Auto-advance cursor REMOVED per user request
+  // Auto-advance cursor REMOVED 
   /*
   const nextIndex = (index + 1) % SYNTH_STEPS;
   
@@ -4953,7 +4968,6 @@ async function handleExportMp3() {
     }
 }
 
-// Removed handleCloudExport as it is now merged into handleExportMp3
 
 function setStepVelocity(channelKey, index, value) {
   pushToHistory();
