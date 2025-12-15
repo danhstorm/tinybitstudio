@@ -1613,6 +1613,13 @@ body.low-power * {
     display: none;
   }
 
+  #viewport {
+    position: static;
+    width: 100%;
+    height: 100%;
+    transform: none;
+  }
+
   #pattern-mobile-dock {
     display: flex;
     flex-direction: column;

@@ -103,109 +103,99 @@ function restoreState(snapshot) {
   state.tempo = snapshot.tempo;
   state.swing = snapshot.swing;
   state.trackName = snapshot.trackName;
-  state.currentUser = snapshot.currentUser;
-  state.editingPatternIdx = snapshot.editingPatternIdx;
-  
-  // Update reference to current pattern
-  state.pattern = state.patterns[state.editingPatternIdx];
-  
-  // Restore channel settings if needed (though they are inside patterns)
-  // But we might have modified them in place?
-  // state.patterns contains the settings.
-  
-  // Update Audio Engine
-  Tone.Transport.bpm.value = state.tempo;
-  Tone.Transport.swing = state.swing / 100;
-  applyWaveformToVoices(state.pattern.channelSettings);
-  
-  // Update UI
-  renderTransport();
-  renderDrumBox();
-  renderSynthStack();
-  
-  // Update Pattern Controls (Grid at bottom)
-  const oldControls = document.getElementById("pattern-controls");
-  if (oldControls) {
-      const newControls = renderPatternControls();
-      oldControls.replaceWith(newControls);
-  }
-  
-  notifyStateChange();
-}
+  function setupResponsiveView() {
+    let autoLowPower = false;
+    let manualPageSelection = false;
+    const workspace = document.getElementById("workspace");
+    const patternDock = refs.patternDock;
+    const desktopPatternParent = document.querySelector(".top-row-container");
+    const dotsContainer = document.createElement("div");
+    const dot1 = document.createElement("div");
+    const dot2 = document.createElement("div");
 
-document.addEventListener("DOMContentLoaded", () => {
-  try {
-    // Check if Tone.js is loaded
-    if (typeof Tone === 'undefined') {
-        throw new Error("Tone.js failed to load. Please check your internet connection or ad-blocker settings.");
-    }
+    dotsContainer.id = "mobile-nav-dots";
+    dot1.className = "nav-dot active";
+    dot2.className = "nav-dot";
+    dotsContainer.append(dot1, dot2);
+    document.body.append(dotsContainer);
 
-    cacheElements();
-    buildPanelBorders();
-    renderIntro();
-    renderTransport();
-    renderVoiceField();
-    renderDrumBox();
-    renderSynthStack();
-    renderArtistMenu();
-    renderVisualizerControls();
-    initVisualizerBody();
-    initGlyphDivider();
-    bindGlobalKeys();
-    startVisualizerTicker();
-    
-    const hasSavedData = loadUserScene(state.currentUser, { silent: true });
-    if (!hasSavedData) {
-        loadDemoSong(1);
-    }
-    
-    // Initialize focus on the first drum step
-    if (!state.focusedStep) {
-      setFocusedStep("drums", 0, "kick");
-    }
-    
-    // Ensure focus is visually applied after rendering
-    const firstBtn = refs.stepButtons.drums.kick?.[0];
-    if (firstBtn) {
-        firstBtn.classList.add("focused-step");
-        firstBtn.focus();
-    }
-    
-    setupResponsiveView();
-    setupGlobalFilters();
-    initResponsiveViewport();
-    
-    // Global click listener for closing overlays
-    document.addEventListener("click", (e) => {
-        // Check if Load Overlay is open
-        if (isOverlayVisible()) {
-            // If click is outside load-panel and not on the load button
-            if (!refs.loadPanel.contains(e.target) && e.target.id !== "transport-load-btn" && !e.target.closest("#transport-load-btn")) {
-                closeSlotOverlay();
-            }
+    const updateDots = (isPage2) => {
+      if (isPage2) {
+        dot1.classList.remove("active");
+        dot2.classList.add("active");
+      } else {
+        dot1.classList.add("active");
+        dot2.classList.remove("active");
+      }
+    };
+
+    const showSequencerPage = (manual = false) => {
+      workspace?.classList.add("view-sequencer");
+      updateDots(true);
+      if (manual) manualPageSelection = true;
+    };
+
+    const showInfoPage = (manual = false) => {
+      workspace?.classList.remove("view-sequencer");
+      updateDots(false);
+      if (manual) manualPageSelection = true;
+    };
+
+    const movePatternControls = () => {
+      const patternControls = document.getElementById("pattern-controls");
+      if (!patternControls || !patternDock || !desktopPatternParent) return;
+      if (window.innerWidth <= 650) {
+        if (!patternDock.contains(patternControls)) {
+          patternDock.appendChild(patternControls);
         }
-        
-        // Check if Help Panel is open
-        if (refs.helpPanel && refs.helpPanel.style.display !== "none") {
-            // If click is outside help-panel and not on the help button
-            if (!refs.helpPanel.contains(e.target) && e.target.id !== "transport-help-btn" && !e.target.closest("#transport-help-btn")) {
-                toggleHelp();
-            }
-        }
-    });
-    
-  } catch (e) {
-    console.error("Fatal Initialization Error:", e);
-    document.body.innerHTML += `<div style="position:fixed;top:0;left:0;background:red;color:white;z-index:9999;padding:1rem;">
-        FATAL ERROR: ${e.message}<br>
-        Check console for details.
-    </div>`;
-  }
-});
+      } else if (!desktopPatternParent.contains(patternControls)) {
+        desktopPatternParent.appendChild(patternControls);
+      }
+    };
 
-function setupGlobalFilters() {
-    // Inject SVG Filter for Global Ghosting
-    const svgNS = "http://www.w3.org/2000/svg";
+    document.addEventListener("pattern-controls-updated", movePatternControls);
+
+    const checkMobileMode = () => {
+      const isSmallScreen = window.innerWidth <= 650;
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      if (isSmallScreen || isMobileUA) {
+        if (!state.lowPowerMode) {
+          console.log("Mobile/Small screen detected: Enabling Low Power Mode");
+          state.lowPowerMode = true;
+          document.body.classList.add("low-power");
+          autoLowPower = true;
+
+          const ecoBtn = document.querySelector("button[title*='Performance Mode']");
+          if (ecoBtn) ecoBtn.style.color = "var(--c64-green)";
+        }
+      } else if (state.lowPowerMode && autoLowPower) {
+        console.log("Large screen detected: Disabling Auto Low Power Mode");
+        state.lowPowerMode = false;
+        document.body.classList.remove("low-power");
+        autoLowPower = false;
+
+        const ecoBtn = document.querySelector("button[title*='Performance Mode']");
+        if (ecoBtn) ecoBtn.style.color = "#555";
+      }
+
+      if (isSmallScreen) {
+        if (!manualPageSelection) showInfoPage();
+      } else {
+        manualPageSelection = false;
+      }
+      movePatternControls();
+    };
+
+    checkMobileMode();
+    window.addEventListener("resize", checkMobileMode);
+
+    dot1.addEventListener("click", () => showInfoPage(true));
+    dot2.addEventListener("click", () => showSequencerPage(true));
+
+    let startX = 0;
+    let startY = 0;
+    let isDragging = false;
     const svg = document.createElementNS(svgNS, "svg");
     svg.style.position = "absolute";
     svg.style.width = "0";
@@ -5055,35 +5045,6 @@ function initResponsiveViewport() {
         viewport.style.position = "static";
         viewport.style.width = "100%";
         viewport.style.height = "100%";
-        
-        // Mobile Zoom-to-fit Logic
-        // The content is roughly 400px wide (min-width of panels).
-        // If screen is narrower than 400px, we need to scale down.
-        const minContentWidth = 380; // Approximate width of content
-        if (window.innerWidth < minContentWidth) {
-             const scale = window.innerWidth / minContentWidth;
-             // Apply scale to workspace or body?
-             // Applying to workspace might break the swipe transform.
-             // Let's apply zoom to the body or a wrapper.
-             // Or just rely on the viewport meta tag?
-             // User said "It cuts it too narrow... cuts off some letters".
-             // This implies the content is wider than the screen.
-             // Let's try to scale the #console content.
-             const consoleEl = document.getElementById("console");
-             if (consoleEl) {
-                 consoleEl.style.transformOrigin = "top left";
-                 consoleEl.style.transform = `scale(${scale})`;
-                 consoleEl.style.width = `${100/scale}vw`; // Compensate width
-                 consoleEl.style.height = `${100/scale}vh`;
-             }
-        } else {
-             const consoleEl = document.getElementById("console");
-             if (consoleEl) {
-                 consoleEl.style.transform = "none";
-                 consoleEl.style.width = "100vw";
-                 consoleEl.style.height = "100vh";
-             }
-        }
         return;
     }
     
