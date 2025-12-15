@@ -20,6 +20,7 @@ export const refs = {
   helpPanel: null,
   overlay: null,
   overlayList: null,
+  patternDock: null,
   stepButtons: {
     drums: {},
     synth: {}
@@ -54,7 +55,8 @@ export const state = {
   patterns: initialPatterns, // Will hold 4 patterns
   patternEnable: [true, false, false, false],
   editingPatternIdx: 0,
-  visualizerMode: 5
+  visualizerMode: 5,
+  lowPowerMode: false
 };
 
 export const audio = {

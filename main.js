@@ -135,8 +135,12 @@ function restoreState(snapshot) {
 
 document.addEventListener("DOMContentLoaded", () => {
   try {
+    // Check if Tone.js is loaded
+    if (typeof Tone === 'undefined') {
+        throw new Error("Tone.js failed to load. Please check your internet connection or ad-blocker settings.");
+    }
+
     cacheElements();
-    buildFrameLines();
     buildPanelBorders();
     renderIntro();
     renderTransport();
@@ -167,6 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
         firstBtn.focus();
     }
     
+    setupResponsiveView();
     setupGlobalFilters();
     initResponsiveViewport();
     
@@ -209,10 +214,11 @@ function setupGlobalFilters() {
     
     const filter = document.createElementNS(svgNS, "filter");
     filter.id = "ghost-filter";
-    filter.setAttribute("x", "-20%");
-    filter.setAttribute("y", "-20%");
-    filter.setAttribute("width", "140%");
-    filter.setAttribute("height", "140%");
+    // Reduce filter region to minimize processing area (was -20% / 140%)
+    filter.setAttribute("x", "-5%");
+    filter.setAttribute("y", "-5%");
+    filter.setAttribute("width", "110%");
+    filter.setAttribute("height", "110%");
     
     // 1. Blur the source slightly
     const blur = document.createElementNS(svgNS, "feGaussianBlur");
@@ -254,6 +260,7 @@ function cacheElements() {
   refs.introField = document.getElementById("intro-field");
   refs.voiceField = document.getElementById("voice-field");
   refs.menuField = document.getElementById("menu-field");
+  refs.patternDock = document.getElementById("pattern-mobile-dock");
   refs.visualizerControls = document.getElementById("visualizer-controls");
   refs.helpBody = document.getElementById("help-body");
   refs.helpPanel = document.getElementById("help-panel");
@@ -261,13 +268,6 @@ function cacheElements() {
   refs.loadList = document.getElementById("load-list");
   const loadClose = document.getElementById("load-close");
   loadClose?.addEventListener("click", closeSlotOverlay);
-}
-
-function buildFrameLines() {
-  // Removed as requested
-  // const line = "+" + "=".repeat(FRAME_WIDTH) + "+";
-  // document.getElementById("frame-top").textContent = line;
-  // document.getElementById("frame-bottom").textContent = line;
 }
 
 function buildPanelBorders() {
@@ -1306,6 +1306,27 @@ function renderThemeControls() {
             togglePatternEndMarker(Number(state.focusedStep.index));
         }
     });
+
+    // ECO Mode Button
+    const ecoBtn = document.createElement("button");
+    ecoBtn.className = "theme-transport-btn";
+    ecoBtn.title = "Performance Mode (Reduces Lag)";
+    ecoBtn.textContent = "ECO";
+    ecoBtn.style.marginLeft = "auto"; 
+    ecoBtn.style.marginRight = "1rem";
+    ecoBtn.style.fontSize = "0.8rem";
+    ecoBtn.style.color = state.lowPowerMode ? "var(--c64-green)" : "#555";
+    
+    ecoBtn.addEventListener("click", () => {
+        state.lowPowerMode = !state.lowPowerMode;
+        if (state.lowPowerMode) {
+            document.body.classList.add("low-power");
+            ecoBtn.style.color = "var(--c64-green)";
+        } else {
+            document.body.classList.remove("low-power");
+            ecoBtn.style.color = "#555";
+        }
+    });
     
     const label = document.createElement("span");
     label.className = "theme-label";
@@ -1327,7 +1348,7 @@ function renderThemeControls() {
         document.body.classList.add("theme-bw");
     });
     
-    container.append(playSongBtn, playBtn, stopBtn, breakBtn, label, stdBtn, bwBtn);
+    container.append(playSongBtn, playBtn, stopBtn, breakBtn, ecoBtn, label, stdBtn, bwBtn);
     return container;
 }
 
@@ -1454,6 +1475,9 @@ function renderPatternControls() {
             // Re-render pattern controls to update editing highlight
             const newControls = renderPatternControls();
             document.getElementById("pattern-controls").replaceWith(newControls);
+            document.dispatchEvent(new Event("pattern-controls-updated"));
+            document.dispatchEvent(new Event("pattern-controls-updated"));
+            document.dispatchEvent(new Event("pattern-controls-updated"));
         });
 
         // Copy/Paste Button
@@ -2286,12 +2310,19 @@ function buildEmptyVisualizer(showLine = true) {
 }
 
 function startVisualizerTicker() {
+  let frameCount = 0;
   const render = () => {
-    try {
-      updateVisualizer();
-      updateGlyphDivider();
-    } catch (e) {
-      console.error("Visualizer error:", e);
+    if (!state.lowPowerMode) {
+      // Throttle to 30fps (every other frame) to reduce CPU load
+      frameCount++;
+      if (frameCount % 2 === 0) {
+        try {
+          updateVisualizer();
+          updateGlyphDivider();
+        } catch (e) {
+          console.error("Visualizer error:", e);
+        }
+      }
     }
     requestAnimationFrame(render);
   };
@@ -3041,7 +3072,7 @@ async function handlePlay(mode = 'pattern') {
   Tone.Transport.stop();
   Tone.Transport.position = 0;
   audio.currentStep = 0;
-  updatePlayheadUI(0);
+  updatePlayheadUI(0, true); // Force update
   updatePatternUI(); // Update pattern indicators
   Tone.Transport.start();
   audio.playing = true;
@@ -3063,7 +3094,13 @@ function handleStop() {
       renderSynthStack();
       renderDrumBox();
       const oldControls = document.getElementById("pattern-controls");
-      if (oldControls) oldControls.replaceWith(renderPatternControls());
+      if (oldControls) {
+        oldControls.replaceWith(renderPatternControls());
+        document.dispatchEvent(new Event("pattern-controls-updated"));
+      }
+      
+      // Force playhead reset since DOM elements are new
+      updatePlayheadUI(0, true);
   }
 
   // Sync playing pattern to currently edited pattern so playhead appears there
@@ -3405,7 +3442,10 @@ function advanceStep(time) {
               renderSynthStack();
               renderDrumBox();
               const oldControls = document.getElementById("pattern-controls");
-              if (oldControls) oldControls.replaceWith(renderPatternControls());
+              if (oldControls) {
+                oldControls.replaceWith(renderPatternControls());
+                document.dispatchEvent(new Event("pattern-controls-updated"));
+              }
           }
           updatePatternUI();
       }, time);
@@ -3646,61 +3686,49 @@ function advanceArp(time) {
   }
 }
 
-function updatePlayheadUI(activeSynthStep = audio.currentStep) {
-  // Show playhead on the currently viewed pattern, regardless of which pattern is playing audio.
-  // This allows editing a pattern while another plays, with the playhead serving as a rhythmic guide.
-  
-  // Optimization: Use requestAnimationFrame to batch DOM updates if not already scheduled
-  // But since this is called from the Tone.js loop, it might be better to keep it synchronous but minimal.
-  // The current implementation already checks for value changes.
-  
-  const drumStep = activeSynthStep % DRUM_STEPS;
-  
-  // Cache references to avoid repeated lookups if possible, but refs is global.
-  
-  for (const lane of drumLanes) {
-    const buttons = refs.stepButtons.drums[lane.key];
-    if (!buttons) continue;
-    
-    // Optimization: Only touch the previous active step and the new active step
-    // Instead of iterating all buttons.
-    // But we don't track "previous active step" easily here without state.
-    // Let's stick to the iteration but make it faster.
-    
-    for (let idx = 0; idx < buttons.length; idx++) {
-        const btn = buttons[idx];
-        const shouldBeActive = (idx === drumStep);
-        // Direct DOM access is slow, but dataset access is also DOM access.
-        // We check the current value first.
-        if ((btn.dataset.playhead === "true") !== shouldBeActive) {
-            btn.dataset.playhead = shouldBeActive ? "true" : "false";
-        }
-    }
+let lastPlayheadStep = -1;
+
+function updatePlayheadUI(activeSynthStep = audio.currentStep, force = false) {
+  if (!force && activeSynthStep === lastPlayheadStep) return;
+
+  if (lastPlayheadStep !== -1 && lastPlayheadStep !== activeSynthStep) {
+      setPlayheadState(lastPlayheadStep, "false");
   }
+  
+  setPlayheadState(activeSynthStep, "true");
+  lastPlayheadStep = activeSynthStep;
+}
 
-  for (const track of synthTracks) {
-    const buttons = refs.stepButtons.synth[track.key];
-    if (!buttons) continue;
-
-    if (track.key === "arp") {
-        for (let idx = 0; idx < buttons.length; idx++) {
-            const btn = buttons[idx];
-            const stepIndex = Math.floor(idx / 2);
-            const shouldBeActive = (stepIndex === activeSynthStep);
-            if ((btn.dataset.playhead === "true") !== shouldBeActive) {
-                btn.dataset.playhead = shouldBeActive ? "true" : "false";
-            }
-        }
-    } else {
-        for (let idx = 0; idx < buttons.length; idx++) {
-            const btn = buttons[idx];
-            const shouldBeActive = (idx === activeSynthStep);
-            if ((btn.dataset.playhead === "true") !== shouldBeActive) {
-                btn.dataset.playhead = shouldBeActive ? "true" : "false";
+function setPlayheadState(stepIndex, stateValue) {
+    const drumStep = stepIndex % DRUM_STEPS;
+    
+    // Drums
+    for (const lane of drumLanes) {
+        const buttons = refs.stepButtons.drums[lane.key];
+        if (buttons) {
+            const btn = buttons[drumStep];
+            if (btn && btn.dataset.playhead !== stateValue) {
+                btn.dataset.playhead = stateValue;
             }
         }
     }
-  }
+    
+    // Synths
+    for (const track of synthTracks) {
+        const buttons = refs.stepButtons.synth[track.key];
+        if (!buttons) continue;
+        
+        if (track.key === "arp") {
+            // Arp has 2 buttons per step
+            const btn1 = buttons[stepIndex * 2];
+            const btn2 = buttons[stepIndex * 2 + 1];
+            if (btn1 && btn1.dataset.playhead !== stateValue) btn1.dataset.playhead = stateValue;
+            if (btn2 && btn2.dataset.playhead !== stateValue) btn2.dataset.playhead = stateValue;
+        } else {
+            const btn = buttons[stepIndex];
+            if (btn && btn.dataset.playhead !== stateValue) btn.dataset.playhead = stateValue;
+        }
+    }
 }
 
 async function handleSave(btn) {
@@ -5020,8 +5048,62 @@ function initResponsiveViewport() {
   const baseHeight = 780;
   
   const handleResize = () => {
+    // If in mobile view (width <= 650), disable the desktop scaling transform
+    // and let CSS handle the layout (which uses 100vw/200vw)
+    if (window.innerWidth <= 650) {
+        viewport.style.transform = "none";
+        viewport.style.position = "static";
+        viewport.style.width = "100%";
+        viewport.style.height = "100%";
+        
+        // Mobile Zoom-to-fit Logic
+        // The content is roughly 400px wide (min-width of panels).
+        // If screen is narrower than 400px, we need to scale down.
+        const minContentWidth = 380; // Approximate width of content
+        if (window.innerWidth < minContentWidth) {
+             const scale = window.innerWidth / minContentWidth;
+             // Apply scale to workspace or body?
+             // Applying to workspace might break the swipe transform.
+             // Let's apply zoom to the body or a wrapper.
+             // Or just rely on the viewport meta tag?
+             // User said "It cuts it too narrow... cuts off some letters".
+             // This implies the content is wider than the screen.
+             // Let's try to scale the #console content.
+             const consoleEl = document.getElementById("console");
+             if (consoleEl) {
+                 consoleEl.style.transformOrigin = "top left";
+                 consoleEl.style.transform = `scale(${scale})`;
+                 consoleEl.style.width = `${100/scale}vw`; // Compensate width
+                 consoleEl.style.height = `${100/scale}vh`;
+             }
+        } else {
+             const consoleEl = document.getElementById("console");
+             if (consoleEl) {
+                 consoleEl.style.transform = "none";
+                 consoleEl.style.width = "100vw";
+                 consoleEl.style.height = "100vh";
+             }
+        }
+        return;
+    }
+    
+    // Desktop Scaling
+    viewport.style.position = "absolute";
+    viewport.style.left = "50%";
+    viewport.style.top = "50%";
+    viewport.style.width = "auto";
+    viewport.style.height = "auto";
+
+    const consoleEl = document.getElementById("console");
+    if (consoleEl) {
+      consoleEl.style.transform = "";
+      consoleEl.style.width = "";
+      consoleEl.style.height = "";
+      consoleEl.style.transformOrigin = "";
+    }
+
     // Subtract padding (2rem * 2 = ~64px) plus a bit of safety margin
-    const padding = 80; 
+    const padding = 40; 
     const availableWidth = window.innerWidth - padding;
     const availableHeight = window.innerHeight - padding;
     
@@ -5048,3 +5130,134 @@ function notifyStateChange() {
 // Initialize Theme Controls
 // Removed setupThemeControls as it is now handled in renderThemeControls
 
+
+function setupResponsiveView() {
+  let autoLowPower = false;
+  const workspace = document.getElementById("workspace");
+  const patternDock = refs.patternDock;
+  const desktopPatternParent = document.querySelector(".top-row-container");
+  const dotsContainer = document.createElement("div");
+  const dot1 = document.createElement("div");
+  const dot2 = document.createElement("div");
+  let manualPageSelection = false;
+
+  dotsContainer.id = "mobile-nav-dots";
+  dot1.className = "nav-dot active";
+  dot2.className = "nav-dot";
+  dotsContainer.append(dot1, dot2);
+  document.body.append(dotsContainer);
+
+  const updateDots = (isPage2) => {
+    if (isPage2) {
+      dot1.classList.remove("active");
+      dot2.classList.add("active");
+    } else {
+      dot1.classList.add("active");
+      dot2.classList.remove("active");
+    }
+  };
+
+  const showSequencerPage = (manual = false) => {
+    workspace?.classList.add("view-sequencer");
+    updateDots(true);
+    if (manual) manualPageSelection = true;
+  };
+
+  const showInfoPage = (manual = false) => {
+    workspace?.classList.remove("view-sequencer");
+    updateDots(false);
+    if (manual) manualPageSelection = true;
+  };
+
+  const movePatternControls = () => {
+    const patternControls = document.getElementById("pattern-controls");
+    if (!patternControls || !patternDock || !desktopPatternParent) return;
+    if (window.innerWidth <= 650) {
+      if (!patternDock.contains(patternControls)) {
+        patternDock.appendChild(patternControls);
+      }
+    } else if (!desktopPatternParent.contains(patternControls)) {
+      desktopPatternParent.appendChild(patternControls);
+    }
+  };
+
+  document.addEventListener("pattern-controls-updated", movePatternControls);
+
+  const checkMobileMode = () => {
+    const isSmallScreen = window.innerWidth <= 650;
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    if (isSmallScreen || isMobileUA) {
+      if (!state.lowPowerMode) {
+        console.log("Mobile/Small screen detected: Enabling Low Power Mode");
+        state.lowPowerMode = true;
+        document.body.classList.add("low-power");
+        autoLowPower = true;
+
+        const ecoBtn = document.querySelector("button[title*='Performance Mode']");
+        if (ecoBtn) ecoBtn.style.color = "var(--c64-green)";
+      }
+    } else if (state.lowPowerMode && autoLowPower) {
+      console.log("Large screen detected: Disabling Auto Low Power Mode");
+      state.lowPowerMode = false;
+      document.body.classList.remove("low-power");
+      autoLowPower = false;
+
+      const ecoBtn = document.querySelector("button[title*='Performance Mode']");
+      if (ecoBtn) ecoBtn.style.color = "#555";
+    }
+
+    if (isSmallScreen) {
+      if (!manualPageSelection) showInfoPage();
+    } else {
+      manualPageSelection = false;
+    }
+    movePatternControls();
+  };
+
+  checkMobileMode();
+  window.addEventListener("resize", checkMobileMode);
+
+  dot1.addEventListener("click", () => showInfoPage(true));
+  dot2.addEventListener("click", () => showSequencerPage(true));
+
+  let startX = 0;
+  let startY = 0;
+  let isDragging = false;
+
+  const handleStart = (x, y) => {
+    if (window.innerWidth > 650) return;
+    startX = x;
+    startY = y;
+    isDragging = true;
+  };
+
+  const handleEnd = (x, y) => {
+    if (!isDragging) return;
+    isDragging = false;
+
+    const diffX = startX - x;
+    const diffY = startY - y;
+
+    if (Math.abs(diffY) > Math.abs(diffX)) return;
+
+    if (Math.abs(diffX) > 50) {
+      if (diffX > 0) {
+        showSequencerPage(true);
+      } else {
+        showInfoPage(true);
+      }
+    }
+  };
+
+  document.addEventListener("touchstart", (e) => handleStart(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  document.addEventListener("touchend", (e) => handleEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY), { passive: true });
+
+  document.addEventListener("mousedown", (e) => {
+    if (['BUTTON', 'INPUT', 'TEXTAREA', 'A'].includes(e.target.tagName)) return;
+    if (e.target.classList.contains("step-btn")) return;
+
+    handleStart(e.clientX, e.clientY);
+  });
+  document.addEventListener("mouseup", (e) => handleEnd(e.clientX, e.clientY));
+}
