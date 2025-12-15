@@ -103,143 +103,26 @@ function restoreState(snapshot) {
   state.tempo = snapshot.tempo;
   state.swing = snapshot.swing;
   state.trackName = snapshot.trackName;
-  function setupResponsiveView() {
-    let autoLowPower = false;
-    let manualPageSelection = false;
-    const workspace = document.getElementById("workspace");
-    const patternDock = refs.patternDock;
-    const desktopPatternParent = document.querySelector(".top-row-container");
-    const dotsContainer = document.createElement("div");
-    const dot1 = document.createElement("div");
-    const dot2 = document.createElement("div");
+  state.currentUser = snapshot.currentUser;
+  state.editingPatternIdx = snapshot.editingPatternIdx;
 
-    dotsContainer.id = "mobile-nav-dots";
-    dot1.className = "nav-dot active";
-    dot2.className = "nav-dot";
-    dotsContainer.append(dot1, dot2);
-    document.body.append(dotsContainer);
+  state.pattern = state.patterns[state.editingPatternIdx];
 
-    const updateDots = (isPage2) => {
-      if (isPage2) {
-        dot1.classList.remove("active");
-        dot2.classList.add("active");
-      } else {
-        dot1.classList.add("active");
-        dot2.classList.remove("active");
-      }
-    };
+  Tone.Transport.bpm.value = state.tempo;
+  Tone.Transport.swing = state.swing / 100;
+  applyWaveformToVoices(state.pattern.channelSettings);
 
-    const showSequencerPage = (manual = false) => {
-      workspace?.classList.add("view-sequencer");
-      updateDots(true);
-      if (manual) manualPageSelection = true;
-    };
+  renderTransport();
+  renderDrumBox();
+  renderSynthStack();
 
-    const showInfoPage = (manual = false) => {
-      workspace?.classList.remove("view-sequencer");
-      updateDots(false);
-      if (manual) manualPageSelection = true;
-    };
+  const oldControls = document.getElementById("pattern-controls");
+  if (oldControls) {
+    const newControls = renderPatternControls();
+    oldControls.replaceWith(newControls);
+  }
 
-    const movePatternControls = () => {
-      const patternControls = document.getElementById("pattern-controls");
-      if (!patternControls || !patternDock || !desktopPatternParent) return;
-      if (window.innerWidth <= 650) {
-        if (!patternDock.contains(patternControls)) {
-          patternDock.appendChild(patternControls);
-        }
-      } else if (!desktopPatternParent.contains(patternControls)) {
-        desktopPatternParent.appendChild(patternControls);
-      }
-    };
-
-    document.addEventListener("pattern-controls-updated", movePatternControls);
-
-    const checkMobileMode = () => {
-      const isSmallScreen = window.innerWidth <= 650;
-      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-      if (isSmallScreen || isMobileUA) {
-        if (!state.lowPowerMode) {
-          console.log("Mobile/Small screen detected: Enabling Low Power Mode");
-          state.lowPowerMode = true;
-          document.body.classList.add("low-power");
-          autoLowPower = true;
-
-          const ecoBtn = document.querySelector("button[title*='Performance Mode']");
-          if (ecoBtn) ecoBtn.style.color = "var(--c64-green)";
-        }
-      } else if (state.lowPowerMode && autoLowPower) {
-        console.log("Large screen detected: Disabling Auto Low Power Mode");
-        state.lowPowerMode = false;
-        document.body.classList.remove("low-power");
-        autoLowPower = false;
-
-        const ecoBtn = document.querySelector("button[title*='Performance Mode']");
-        if (ecoBtn) ecoBtn.style.color = "#555";
-      }
-
-      if (isSmallScreen) {
-        if (!manualPageSelection) showInfoPage();
-      } else {
-        manualPageSelection = false;
-      }
-      movePatternControls();
-    };
-
-    checkMobileMode();
-    window.addEventListener("resize", checkMobileMode);
-
-    dot1.addEventListener("click", () => showInfoPage(true));
-    dot2.addEventListener("click", () => showSequencerPage(true));
-
-    let startX = 0;
-    let startY = 0;
-    let isDragging = false;
-    const svg = document.createElementNS(svgNS, "svg");
-    svg.style.position = "absolute";
-    svg.style.width = "0";
-    svg.style.height = "0";
-    svg.style.pointerEvents = "none";
-    
-    const filter = document.createElementNS(svgNS, "filter");
-    filter.id = "ghost-filter";
-    // Reduce filter region to minimize processing area (was -20% / 140%)
-    filter.setAttribute("x", "-5%");
-    filter.setAttribute("y", "-5%");
-    filter.setAttribute("width", "110%");
-    filter.setAttribute("height", "110%");
-    
-    // 1. Blur the source slightly
-    const blur = document.createElementNS(svgNS, "feGaussianBlur");
-    blur.setAttribute("in", "SourceGraphic");
-    blur.setAttribute("stdDeviation", "1.2"); // Increased blur
-    blur.setAttribute("result", "blur");
-    
-    // 2. Offset the blurred copy
-    const offset = document.createElementNS(svgNS, "feOffset");
-    offset.setAttribute("in", "blur");
-    offset.setAttribute("dx", "6"); // More to the right
-    offset.setAttribute("dy", "-3"); // Moved upwards
-    offset.setAttribute("result", "offset");
-    
-    // 3. Reduce opacity (faint)
-    const colorMatrix = document.createElementNS(svgNS, "feColorMatrix");
-    colorMatrix.setAttribute("in", "offset");
-    colorMatrix.setAttribute("type", "matrix");
-    // R G B A (Keep colors, reduce Alpha to 0.10)
-    colorMatrix.setAttribute("values", "1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.10 0");
-    colorMatrix.setAttribute("result", "faint");
-    
-    // 4. Blend with Screen (Lighten) to avoid dark doubles
-    const blend = document.createElementNS(svgNS, "feBlend");
-    blend.setAttribute("in", "SourceGraphic");
-    blend.setAttribute("in2", "faint");
-    blend.setAttribute("mode", "screen");
-    
-    filter.append(blur, offset, colorMatrix, blend);
-    svg.append(filter);
-    document.body.append(svg);
+  notifyStateChange();
 }
 
 function cacheElements() {
@@ -5222,3 +5105,63 @@ function setupResponsiveView() {
   });
   document.addEventListener("mouseup", (e) => handleEnd(e.clientX, e.clientY));
 }
+document.addEventListener("DOMContentLoaded", () => {
+  try {
+    if (typeof Tone === 'undefined') {
+      throw new Error("Tone.js failed to load. Please check your internet connection or ad-blocker settings.");
+    }
+
+    cacheElements();
+    buildPanelBorders();
+    renderIntro();
+    renderTransport();
+    renderVoiceField();
+    renderDrumBox();
+    renderSynthStack();
+    renderArtistMenu();
+    renderVisualizerControls();
+    initVisualizerBody();
+    initGlyphDivider();
+    bindGlobalKeys();
+    startVisualizerTicker();
+
+    const hasSavedData = loadUserScene(state.currentUser, { silent: true });
+    if (!hasSavedData) {
+      loadDemoSong(1);
+    }
+
+    if (!state.focusedStep) {
+      setFocusedStep("drums", 0, "kick");
+    }
+
+    const firstBtn = refs.stepButtons.drums.kick?.[0];
+    if (firstBtn) {
+      firstBtn.classList.add("focused-step");
+      firstBtn.focus();
+    }
+
+    setupResponsiveView();
+    setupGlobalFilters();
+    initResponsiveViewport();
+
+    document.addEventListener("click", (e) => {
+      if (isOverlayVisible()) {
+        if (!refs.loadPanel.contains(e.target) && e.target.id !== "transport-load-btn" && !e.target.closest("#transport-load-btn")) {
+          closeSlotOverlay();
+        }
+        if (refs.helpPanel && refs.helpPanel.style.display !== "none") {
+          if (!refs.helpPanel.contains(e.target) && e.target.id !== "transport-help-btn" && !e.target.closest("#transport-help-btn")) {
+            toggleHelp();
+          }
+        }
+      }
+    });
+
+  } catch (e) {
+    console.error("Fatal Initialization Error:", e);
+    document.body.innerHTML += `<div style="position:fixed;top:0;left:0;background:red;color:white;z-index:9999;padding:1rem;">
+        FATAL ERROR: ${e.message}<br>
+        Check console for details.
+    </div>`;
+  }
+});
