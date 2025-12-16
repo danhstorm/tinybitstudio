@@ -125,6 +125,55 @@ function restoreState(snapshot) {
   notifyStateChange();
 }
 
+function setupGlobalFilters() {
+    // Inject SVG Filter for Global Ghosting
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.style.position = "absolute";
+    svg.style.width = "0";
+    svg.style.height = "0";
+    svg.style.pointerEvents = "none";
+    
+    const filter = document.createElementNS(svgNS, "filter");
+    filter.id = "ghost-filter";
+    // Reduce filter region to minimize processing area (was -20% / 140%)
+    filter.setAttribute("x", "-5%");
+    filter.setAttribute("y", "-5%");
+    filter.setAttribute("width", "110%");
+    filter.setAttribute("height", "110%");
+    
+    // 1. Blur the source slightly
+    const blur = document.createElementNS(svgNS, "feGaussianBlur");
+    blur.setAttribute("in", "SourceGraphic");
+    blur.setAttribute("stdDeviation", "1.2"); // Increased blur
+    blur.setAttribute("result", "blur");
+    
+    // 2. Offset the blurred copy
+    const offset = document.createElementNS(svgNS, "feOffset");
+    offset.setAttribute("in", "blur");
+    offset.setAttribute("dx", "6"); // More to the right
+    offset.setAttribute("dy", "-3"); // Moved upwards
+    offset.setAttribute("result", "offset");
+    
+    // 3. Reduce opacity (faint)
+    const colorMatrix = document.createElementNS(svgNS, "feColorMatrix");
+    colorMatrix.setAttribute("in", "offset");
+    colorMatrix.setAttribute("type", "matrix");
+    // R G B A (Keep colors, reduce Alpha to 0.10)
+    colorMatrix.setAttribute("values", "1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.10 0");
+    colorMatrix.setAttribute("result", "faint");
+    
+    // 4. Blend with Screen (Lighten) to avoid dark doubles
+    const blend = document.createElementNS(svgNS, "feBlend");
+    blend.setAttribute("in", "SourceGraphic");
+    blend.setAttribute("in2", "faint");
+    blend.setAttribute("mode", "screen");
+    
+    filter.append(blur, offset, colorMatrix, blend);
+    svg.append(filter);
+    document.body.append(svg);
+}
+
 function cacheElements() {
   refs.drumBody = document.getElementById("drum-body");
   refs.transportBody = document.getElementById("transport-body");
