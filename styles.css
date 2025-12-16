@@ -1454,12 +1454,16 @@ body.low-power * {
 
 /* Mobile / Tablet View */
 @media (max-width: 650px) {
+  :root {
+    font-size: 14px;
+  }
+
   body,
   html {
-    overflow: auto;
-    position: relative;
+    overflow: hidden;
+    position: fixed;
     width: 100%;
-    min-height: 100%;
+    height: 100%;
     overscroll-behavior: none;
     touch-action: none;
     background: radial-gradient(circle at center, #1a1a2e 0%, #000 100%) !important;
@@ -1467,13 +1471,18 @@ body.low-power * {
 
   #console {
     width: 100%;
-    min-height: 100vh;
-    max-height: 100vh;
-    overflow-y: auto;
+    height: 100%;
+    overflow: hidden;
     padding: 0;
     border: none;
     background: #01010a;
     filter: none !important;
+  }
+
+  #viewport {
+    position: static;
+    width: 100%;
+    transform: none;
   }
 
   #console::before {
@@ -1482,7 +1491,7 @@ body.low-power * {
 
   #workspace {
     width: 200%;
-    min-height: 100%;
+    height: 100%;
     display: grid;
     grid-template-columns: 50% 50%;
     grid-template-rows: auto minmax(0, 1fr);
@@ -1528,8 +1537,8 @@ body.low-power * {
   }
 
   #drum-body {
-    gap: 0.1rem;
-    padding: 0;
+    gap: 0;
+    padding: 0.25rem;
   }
 
   #synth-panel .panel-body {
@@ -1565,15 +1574,6 @@ body.low-power * {
     gap: 0.1rem;
   }
 
-  #drum-panel .panel-body {
-    padding-top: 0.1rem;
-    padding-bottom: 0.1rem;
-  }
-
-  #drum-body {
-    gap: 0;
-  }
-
   .track-body-row {
     flex-direction: column;
     width: 100%;
@@ -1587,6 +1587,20 @@ body.low-power * {
     grid-auto-columns: minmax(2rem, 1fr);
     width: 100%;
     justify-content: stretch;
+  }
+
+  .track-row {
+    padding-left: 0;
+    padding-right: 0;
+    box-shadow: none;
+  }
+
+  .track-box-bass,
+  .track-box-lead,
+  .track-box-arp {
+    box-shadow: none;
+    border: none;
+    padding: 0.25rem 0;
   }
 
   .top-row-container {
@@ -1625,6 +1639,15 @@ body.low-power * {
     padding: 0;
   }
 
+  .step-btn span {
+    font-size: 0.6rem;
+  }
+
+  .track-slider {
+    width: 100%;
+    max-width: 180px;
+  }
+
   .track-label {
     font-size: 0.7rem;
     width: 54px;
@@ -1632,13 +1655,6 @@ body.low-power * {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-
-  .drum-row,
-  .synth-row {
-    gap: 0.2rem;
-    justify-content: flex-start;
-    width: 100%;
   }
 
   .glyph-divider {
