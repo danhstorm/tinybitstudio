@@ -188,6 +188,7 @@ function cacheElements() {
   refs.helpPanel = document.getElementById("help-panel");
   refs.loadPanel = document.getElementById("load-panel");
   refs.loadList = document.getElementById("load-list");
+  refs.workspace = document.getElementById("workspace");
   const loadClose = document.getElementById("load-close");
   loadClose?.addEventListener("click", closeSlotOverlay);
 }
@@ -4642,6 +4643,59 @@ function focusStoredStepButton() {
   return button || null;
 }
 
+function focusStepButton(button) {
+  if (!button) return;
+  try {
+    button.focus({ preventScroll: true });
+  } catch (err) {
+    button.focus();
+  }
+  updateFocusState(button);
+}
+
+function handleStepDragStart(event) {
+  if (event.button !== 0) return;
+  if (state.stepDrag) return;
+  const target = event.target?.closest?.(".step-btn");
+  if (!target) return;
+
+  state.stepDrag = {
+    pointerId: event.pointerId,
+    currentBtn: target,
+  };
+  focusStepButton(target);
+
+  window.addEventListener("pointermove", handleStepDragMove);
+  window.addEventListener("pointerup", handleStepDragEnd);
+  window.addEventListener("pointercancel", handleStepDragEnd);
+}
+
+function handleStepDragMove(event) {
+  const drag = state.stepDrag;
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  const hit = document.elementFromPoint(event.clientX, event.clientY);
+  const target = hit?.closest?.(".step-btn");
+  if (target && target !== drag.currentBtn) {
+    drag.currentBtn = target;
+    focusStepButton(target);
+  }
+}
+
+function handleStepDragEnd(event) {
+  const drag = state.stepDrag;
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  state.stepDrag = null;
+  window.removeEventListener("pointermove", handleStepDragMove);
+  window.removeEventListener("pointerup", handleStepDragEnd);
+  window.removeEventListener("pointercancel", handleStepDragEnd);
+}
+
+function initSequencerDragFocus() {
+  const workspace = refs.workspace || document.getElementById("workspace");
+  if (!workspace) return;
+  workspace.addEventListener("pointerdown", handleStepDragStart);
+}
+
 function ensureStepDefaults(channelKey, index) {
   const step = getSynthStep(channelKey, index);
   if (!step) return;
@@ -4996,7 +5050,7 @@ function initResponsiveViewport() {
     }
 
     // Subtract padding (2rem * 2 = ~64px) plus a bit of safety margin
-    const padding = 40; 
+    const padding = 80; // Add extra breathing room so tall layouts don't touch the viewport edges
     const availableWidth = window.innerWidth - padding;
     const availableHeight = window.innerHeight - padding;
     
@@ -5028,7 +5082,6 @@ function setupResponsiveView() {
   let autoLowPower = false;
   const workspace = document.getElementById("workspace");
   const patternDock = refs.patternDock;
-  const desktopPatternParent = document.querySelector(".top-row-container");
   const dotsContainer = document.createElement("div");
   const dot1 = document.createElement("div");
   const dot2 = document.createElement("div");
@@ -5064,6 +5117,7 @@ function setupResponsiveView() {
 
   const movePatternControls = () => {
     const patternControls = document.getElementById("pattern-controls");
+    const desktopPatternParent = document.querySelector(".top-row-container");
     if (!patternControls || !patternDock || !desktopPatternParent) return;
     if (window.innerWidth <= 650) {
       if (!patternDock.contains(patternControls)) {
@@ -5192,6 +5246,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupResponsiveView();
     setupGlobalFilters();
     initResponsiveViewport();
+    initSequencerDragFocus();
 
     document.addEventListener("click", (e) => {
       if (isOverlayVisible()) {

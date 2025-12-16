@@ -26,6 +26,28 @@ body.theme-bw {
   --c64-shadow: #333;
 }
 
+.drum-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.drum-label {
+  width: 6ch;
+  color: var(--c64-cyan);
+  font-size: 0.75rem;
+}
+
+.drum-grid {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 0.2rem;
+  flex-grow: 1;
+  justify-content: space-between;
+  /* Removed padding-left as it's now handled by flex layout with .track-art */
+}
+
 body.theme-bw #console {
   background: radial-gradient(circle at center, #222 60%, #000 100%);
 }
@@ -71,7 +93,7 @@ body {
 
 #viewport {
   width: 1180px;
-  height: 820px;
+  height: 780px;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -697,6 +719,7 @@ button:focus-visible {
 .step-grid {
   display: grid;
   grid-auto-flow: column;
+  grid-auto-columns: minmax(2rem, 1fr);
   gap: 0.2rem;
   flex-grow: 1;
   justify-content: space-between;
@@ -1401,130 +1424,13 @@ body.low-power * {
   text-shadow: none !important;
 }
 
-/* Mobile / Tablet View */
-@media (max-width: 650px) {
-  body {
-    overflow: hidden;
-    position: fixed;
-    width: 100%;
-    height: 100%;
-  }
-
-  #console {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    padding: 0;
-    border: none;
-    background: #111; /* Force dark background */
-  }
-
-  #workspace {
-    width: 200%;
-    height: 100%;
-    display: grid;
-    grid-template-columns: 50% 50%;
-    grid-template-rows: auto minmax(0, 1fr); /* Ensure row 2 can shrink for scrolling */
-    grid-template-areas:
-      "info drums"
-      "info synth";
-    gap: 0;
-    padding: 0;
-    margin: 0;
-    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  }
-  
-  /* Slide State - Only applies in mobile view */
-  #workspace.view-sequencer {
-    transform: translateX(-50%);
-  }
-
-  /* Page 1: Info / Transport */
-  #info-panel {
-    width: 100%;
-    height: 100%;
-    overflow-y: auto;
-    padding: 1rem;
-    box-sizing: border-box;
-    border: none;
-    box-shadow: none;
-    /* Ensure it spans both rows in column 1 */
-    grid-row: 1 / -1;
-  }
-
-  /* Page 2: Sequencer */
-  #drum-panel {
-    width: 100%;
-    padding: 0.25rem;
-    box-sizing: border-box;
-    /* Row 1, Col 2 */
-  }
-
-  #synth-panel {
-    width: 100%;
-    padding: 0.25rem;
-    box-sizing: border-box;
-    overflow-y: auto;
-    padding-bottom: 6rem; /* Extra space for scrolling */
-    /* Row 2, Col 2 */
-  }
-
-  /* Automatic Zoom / Fit: Use responsive units */
-  .step-btn {
-    flex: 1; /* Distribute available space equally */
-    min-width: 0; /* Allow shrinking to fit */
-    height: auto; /* Let aspect ratio determine height */
-    aspect-ratio: 3/4; /* Maintain consistent shape */
-    max-width: 40px;
-    max-height: 50px;
-    font-size: 0.6rem;
-    margin: 1px;
-    padding: 0; /* Maximize content area */
-  }
-  
-  .track-label {
-    font-size: 0.7rem;
-    width: 60px; /* Fixed width for labels */
-    flex-shrink: 0; /* Prevent label from squashing */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  
-  .drum-row, .synth-row {
-    gap: 0;
-    justify-content: flex-start; /* Let flex items fill */
-    display: flex; /* Ensure flex context */
-    width: 100%;
-  }
-
-  /* Hide decorative borders to save space */
-  .panel-body {
-    border: none;
-    padding: 0.25rem;
-  }
-  
-  /* Ensure overlays cover the visible screen */
-  #help-panel, #load-panel {
-    width: 100vw;
-    height: 100vh;
-    position: fixed;
-    top: 0;
-    left: 0;
-    grid-area: auto; /* Reset grid positioning */
-    z-index: 9999;
-  }
-}
-
-/* Slide State removed from global scope */
-
 /* Navigation Dots */
 #mobile-nav-dots {
   position: fixed;
   bottom: 1rem;
   left: 50%;
   transform: translateX(-50%);
-  display: none; /* Hidden by default */
+  display: none;
   gap: 0.5rem;
   z-index: 1000;
   pointer-events: auto;
@@ -1546,24 +1452,130 @@ body.low-power * {
   box-shadow: 0 0 8px var(--c64-cyan);
 }
 
+/* Mobile / Tablet View */
 @media (max-width: 650px) {
-  #mobile-nav-dots {
-    display: flex;
+  body,
+  html {
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    overscroll-behavior: none;
+    touch-action: none;
+    background: radial-gradient(circle at center, #1a1a2e 0%, #000 100%) !important;
   }
-  
-  /* Adjust right panel width to be wider if needed, but 100vw is max */
-  /* If user wants it "wider", maybe they mean the content shouldn't be squashed? */
-  /* We already set .step-btn width to 5.5vw which fits 16 steps in ~88vw */
-  /* That leaves 12vw for labels. */
-  
-  /* Ensure background colors are correct in split view */
+
+  #console {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    padding: 0;
+    border: none;
+    background: #01010a;
+    filter: none !important;
+  }
+
+  #console::before {
+    display: none;
+  }
+
+  #workspace {
+    width: 200%;
+    height: 100%;
+    display: grid;
+    grid-template-columns: 50% 50%;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "info drums"
+      "info synth";
+    gap: 0;
+    padding: 0;
+    margin: 0;
+    align-items: stretch;
+    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  #workspace.view-sequencer {
+    transform: translateX(-50%);
+  }
+
   #info-panel {
-    background: rgba(0,0,0,0.2); /* Slight tint */
+    width: 100%;
+    grid-row: 1 / -1;
+    overflow: hidden;
+    padding: 0.5rem 0.25rem 0;
+    box-sizing: border-box;
+    border: none;
+    box-shadow: none;
   }
-  
-  #drum-panel, #synth-panel {
-    /* Ensure these don't have opaque backgrounds blocking the body gradient */
+
+  #info-panel .panel-body {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    gap: 0.4rem;
+    padding-bottom: 3rem;
+  }
+
+  #drum-panel,
+  #synth-panel {
+    width: 100%;
+    padding: 0.35rem 0.5rem 0.25rem;
+    box-sizing: border-box;
     background: transparent;
+    min-height: 0;
+  }
+
+  #synth-panel .panel-body {
+    overflow-y: auto;
+    padding-bottom: 6rem;
+  }
+
+  .panel-body {
+    border: none;
+    padding: 0.25rem;
+  }
+
+  /* Mobile-only sequencer adjustments */
+  .drum-row {
+    flex-direction: column;
+    align-items: stretch;
+    margin-bottom: 0.05rem;
+    gap: 0.05rem;
+  }
+
+  .drum-label {
+    width: 100%;
+    font-weight: bold;
+    letter-spacing: 0.2ch;
+    margin-bottom: 0;
+  }
+
+  .drum-grid {
+    grid-auto-columns: minmax(2rem, 1fr);
+    width: 100%;
+    justify-content: stretch;
+    gap: 0.1rem;
+  }
+
+  #drum-panel .panel-body {
+    padding-top: 0.1rem;
+    padding-bottom: 0.1rem;
+  }
+
+  .track-body-row {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .track-art {
+    display: none;
+  }
+
+  .step-grid {
+    grid-auto-columns: minmax(2rem, 1fr);
+    width: 100%;
+    justify-content: stretch;
   }
 
   .top-row-container {
@@ -1589,35 +1601,61 @@ body.low-power * {
     font-size: 1rem;
   }
 
+  .step-btn {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    aspect-ratio: 3 / 4;
+    max-width: 40px;
+    max-height: 50px;
+    font-size: 0.6rem;
+    margin: 0.15rem;
+    padding: 0;
+  }
+
+  .track-label {
+    font-size: 0.7rem;
+    width: 54px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .drum-row,
+  .synth-row {
+    gap: 0.2rem;
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .glyph-divider {
+    display: none;
+  }
+
+  .synth-header {
+    display: none;
+  }
+
+  #help-panel,
+  #load-panel {
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    grid-area: auto;
+    z-index: 9999;
+  }
+
+  #mobile-nav-dots {
+    display: flex;
+  }
+
   #visualizer-shell,
   #visualizer-controls {
     display: none;
-  }
-
-  body, html {
-    background: #01010a !important;
-    overflow: hidden;
-    position: fixed;
-    width: 100%;
-    height: 100%;
-    overscroll-behavior: none;
-    touch-action: none;
-  }
-
-  #console {
-    background: #01010a;
-    filter: none !important;
-  }
-
-  #console::before {
-    display: none;
-  }
-
-  #viewport {
-    position: static;
-    width: 100%;
-    height: 100%;
-    transform: none;
   }
 
   #pattern-mobile-dock {
@@ -1626,30 +1664,23 @@ body.low-power * {
     gap: 0.5rem;
     margin-bottom: 0.75rem;
   }
+
+  #drum-panel,
+  #synth-panel,
+  #info-panel {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    overflow-x: hidden;
+    min-height: 0;
+  }
 }
 
-/* Mobile Background Fix */
-@media (max-width: 650px) {
-  body {
-    /* Ensure dark background is visible */
-    background: radial-gradient(circle at center, #1a1a2e 0%, #000 100%) !important;
-  }
-  
-  /* Ensure panels don't clip content */
-  #drum-panel, #synth-panel, #info-panel {
-    padding-left: 0.5rem !important;
-    padding-right: 0.5rem !important;
-    overflow-x: hidden; /* Prevent horizontal scroll inside panels */
-  }
-  
-  /* Adjust font size for very small screens */
+@media (max-width: 380px) {
+  :root {
+    font-size: 14px;
   }
 
-  @media (max-width: 380px) {
-    :root {
-      font-size: 14px; /* Scale down base font */
-    }
-    .step-btn {
-      width: 5vw; /* Slightly smaller buttons */
-    }
+  .step-btn {
+    width: 5vw;
   }
+}

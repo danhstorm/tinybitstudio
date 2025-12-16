@@ -21,6 +21,7 @@ export const refs = {
   overlay: null,
   overlayList: null,
   patternDock: null,
+  workspace: null,
   stepButtons: {
     drums: {},
     synth: {}
@@ -45,7 +46,6 @@ export const state = {
   keyboardOctave: 3,
   activeKnob: null,
   focusedStep: null,
-  pattern: initialPatterns[0],
   lastSaveLength: null,
   knobDrag: null,
   suppressKnobClick: false,
@@ -55,8 +55,10 @@ export const state = {
   patterns: initialPatterns, // Will hold 4 patterns
   patternEnable: [true, false, false, false],
   editingPatternIdx: 0,
+  pattern: initialPatterns[0],
   visualizerMode: 5,
-  lowPowerMode: false
+  lowPowerMode: false,
+  stepDrag: null
 };
 
 export const audio = {
