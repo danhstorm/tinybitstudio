@@ -19,6 +19,14 @@
     <title>Tiny Bit Studio</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="styles.css" />
+    <style>
+      /* Critical mobile styles to prevent flash of wrong position */
+      @media (max-width: 650px) {
+        #viewport, #console { overflow: hidden !important; }
+        #workspace { transform: translateX(0) !important; }
+        #workspace.view-sequencer { transform: translateX(-50%) !important; }
+      }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/tone@next/build/Tone.js"></script>
     <!-- Supabase removed for local server -->
     <script type="module" src="main.js" defer></script>
@@ -27,7 +35,7 @@
     <div id="viewport">
       <div id="console" role="application" aria-label="Retro tracker workstation">
         <!-- <pre id="frame-top" class="frame-line"></pre> -->
-        <div id="workspace">
+        <div id="workspace" style="transform: translateX(0)">
           <section id="drum-panel" class="ascii-panel" aria-label="Drum workstation">
             <div class="panel-body single-frame" id="drum-body"></div>
           </section>

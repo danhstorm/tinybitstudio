@@ -1482,7 +1482,9 @@ body.low-power * {
   #viewport {
     position: static;
     width: 100%;
+    height: 100%;
     transform: none;
+    overflow: hidden;
   }
 
   #console::before {
@@ -1503,6 +1505,7 @@ body.low-power * {
     margin: 0;
     align-items: stretch;
     transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transform: translateX(0);
   }
 
   #workspace.view-sequencer {
@@ -1544,6 +1547,10 @@ body.low-power * {
   #synth-panel .panel-body {
     overflow-y: auto;
     padding-bottom: 6rem;
+  }
+
+  #synth-body {
+    gap: 0.25rem;
   }
 
   .panel-body {
@@ -1599,8 +1606,9 @@ body.low-power * {
   .track-box-lead,
   .track-box-arp {
     box-shadow: none;
-    border: none;
-    padding: 0.25rem 0;
+    border: 1px solid var(--c64-orange);
+    padding: 0.2rem 0.25rem;
+    margin-bottom: 0.15rem;
   }
 
   .top-row-container {
@@ -1683,6 +1691,14 @@ body.low-power * {
   #visualizer-shell,
   #visualizer-controls {
     display: none;
+  }
+
+  #synth-controls {
+    margin-bottom: 0.5rem;
+  }
+
+  #theme-controls-fixed {
+    margin-top: 0.5rem;
   }
 
   #pattern-mobile-dock {

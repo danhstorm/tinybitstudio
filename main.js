@@ -764,8 +764,15 @@ function renderDrumBox() {
         btn.dataset.level = level.toString();
         btn.innerHTML = `<span class="btn-level">${LEVEL_SYMBOLS[level]}</span>`;
         btn.addEventListener("click", () => {
+          // Check focus state BEFORE updating it
+          const wasFocused = state.focusedStep?.channel === "drums" && state.focusedStep?.lane === lane.key && state.focusedStep?.index === index;
+          
           setFocusedStep("drums", index, lane.key);
-          cycleDrumLevel(lane.key, index);
+          
+          // Only cycle level if already focused
+          if (wasFocused) {
+            cycleDrumLevel(lane.key, index);
+          }
         });
         // Remove focus listener to prevent browser focus from interfering with our custom focus
         btn.addEventListener("focus", () => rememberGridFocus(btn));
@@ -5086,6 +5093,15 @@ function setupResponsiveView() {
   const dot1 = document.createElement("div");
   const dot2 = document.createElement("div");
   let manualPageSelection = false;
+
+  // Immediately set workspace to info page position on mobile (no transition on first load)
+  if (window.innerWidth <= 650 && workspace) {
+    workspace.style.transition = 'none';
+    workspace.classList.remove("view-sequencer");
+    // Force reflow then restore transition
+    workspace.offsetHeight;
+    workspace.style.transition = '';
+  }
 
   dotsContainer.id = "mobile-nav-dots";
   dot1.className = "nav-dot active";
