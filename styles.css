@@ -1504,8 +1504,12 @@ body.low-power * {
     padding: 0;
     margin: 0;
     align-items: stretch;
-    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     transform: translateX(0);
+  }
+
+  /* Enable transitions once mobile-ready (after JS positions correctly) */
+  #workspace.mobile-ready {
+    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
 
   #workspace.view-sequencer {

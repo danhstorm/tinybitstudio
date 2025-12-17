@@ -814,6 +814,12 @@ function renderSynthStack() {
 
   refs.synthBody.innerHTML = "";
   
+  // Remove any existing pattern-controls (may be in mobile dock)
+  const existingPatternControls = document.getElementById("pattern-controls");
+  if (existingPatternControls) {
+    existingPatternControls.remove();
+  }
+  
   // Clear stored buttons to prevent memory leaks and ghost updates
   refs.stepButtons.synth = {
       bass: [],
@@ -1152,6 +1158,9 @@ function renderSynthStack() {
 
   refs.synthBody.append(fragment);
   
+  // Notify so pattern controls get moved to mobile dock if needed
+  document.dispatchEvent(new Event("pattern-controls-updated"));
+  
   // Rebuild focus grid after synths are rendered
   buildFocusGrid();
   } catch (e) {
@@ -1402,12 +1411,7 @@ function renderPatternControls() {
             state.pattern = state.patterns[i];
             renderSynthStack();
             renderDrumBox();
-            // Re-render pattern controls to update editing highlight
-            const newControls = renderPatternControls();
-            document.getElementById("pattern-controls").replaceWith(newControls);
-            document.dispatchEvent(new Event("pattern-controls-updated"));
-            document.dispatchEvent(new Event("pattern-controls-updated"));
-            document.dispatchEvent(new Event("pattern-controls-updated"));
+            // Note: renderSynthStack already dispatches pattern-controls-updated
         });
 
         // Copy/Paste Button
@@ -5086,6 +5090,7 @@ function notifyStateChange() {
 
 
 function setupResponsiveView() {
+  console.log("setupResponsiveView started");
   let autoLowPower = false;
   const workspace = document.getElementById("workspace");
   const patternDock = refs.patternDock;
@@ -5094,13 +5099,14 @@ function setupResponsiveView() {
   const dot2 = document.createElement("div");
   let manualPageSelection = false;
 
-  // Immediately set workspace to info page position on mobile (no transition on first load)
-  if (window.innerWidth <= 650 && workspace) {
-    workspace.style.transition = 'none';
-    workspace.classList.remove("view-sequencer");
-    // Force reflow then restore transition
-    workspace.offsetHeight;
-    workspace.style.transition = '';
+  // Reveal the workspace (hidden by default on mobile until positioned)
+  if (workspace) {
+    // Ensure we start on info page (left panel) on mobile
+    if (window.innerWidth <= 650) {
+      workspace.classList.remove("view-sequencer");
+    }
+    // Make workspace visible - this enables transitions too via CSS
+    workspace.classList.add("mobile-ready");
   }
 
   dotsContainer.id = "mobile-nav-dots";
@@ -5108,6 +5114,7 @@ function setupResponsiveView() {
   dot2.className = "nav-dot";
   dotsContainer.append(dot1, dot2);
   document.body.append(dotsContainer);
+  console.log("Dots appended to body", dotsContainer);
 
   const updateDots = (isPage2) => {
     if (isPage2) {
@@ -5120,13 +5127,22 @@ function setupResponsiveView() {
   };
 
   const showSequencerPage = (manual = false) => {
-    workspace?.classList.add("view-sequencer");
+    console.log("showSequencerPage called", workspace);
+    if (workspace) {
+      workspace.classList.add("view-sequencer");
+      console.log("Classes after add:", workspace.className);
+      console.log("Computed transform:", getComputedStyle(workspace).transform);
+    }
     updateDots(true);
     if (manual) manualPageSelection = true;
   };
 
   const showInfoPage = (manual = false) => {
-    workspace?.classList.remove("view-sequencer");
+    console.log("showInfoPage called");
+    if (workspace) {
+      workspace.classList.remove("view-sequencer");
+      console.log("Classes after remove:", workspace.className);
+    }
     updateDots(false);
     if (manual) manualPageSelection = true;
   };
@@ -5181,8 +5197,16 @@ function setupResponsiveView() {
   checkMobileMode();
   window.addEventListener("resize", checkMobileMode);
 
-  dot1.addEventListener("click", () => showInfoPage(true));
-  dot2.addEventListener("click", () => showSequencerPage(true));
+  dot1.addEventListener("click", () => {
+    console.log("dot1 clicked");
+    showInfoPage(true);
+  });
+  dot2.addEventListener("click", () => {
+    console.log("dot2 clicked");
+    showSequencerPage(true);
+  });
+
+  console.log("Event listeners attached to dots");
 
   let startX = 0;
   let startY = 0;

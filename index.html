@@ -18,15 +18,15 @@
 
     <title>Tiny Bit Studio</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link rel="stylesheet" href="styles.css" />
     <style>
-      /* Critical mobile styles to prevent flash of wrong position */
+      /* Critical: Hide mobile workspace until JS positions it correctly */
       @media (max-width: 650px) {
-        #viewport, #console { overflow: hidden !important; }
-        #workspace { transform: translateX(0) !important; }
-        #workspace.view-sequencer { transform: translateX(-50%) !important; }
+        #workspace:not(.mobile-ready) {
+          visibility: hidden !important;
+        }
       }
     </style>
+    <link rel="stylesheet" href="styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/tone@next/build/Tone.js"></script>
     <!-- Supabase removed for local server -->
     <script type="module" src="main.js" defer></script>
@@ -35,7 +35,22 @@
     <div id="viewport">
       <div id="console" role="application" aria-label="Retro tracker workstation">
         <!-- <pre id="frame-top" class="frame-line"></pre> -->
-        <div id="workspace" style="transform: translateX(0)">
+        <div id="workspace">
+          <!-- Info panel first in DOM for proper mobile initial render -->
+          <section id="info-panel" class="ascii-panel" aria-label="Control hub">
+            <div class="panel-body" id="info-body">
+              <div id="intro-field"></div>
+              <div id="transport-body"></div>
+              <div id="voice-field"></div>
+              <div id="menu-field"></div>
+              <div id="pattern-mobile-dock"></div>
+              <div id="visualizer-controls"></div>
+              <div id="visualizer-shell" class="single-frame">
+                <div id="visualizer-body"></div>
+              </div>
+            </div>
+          </section>
+
           <section id="drum-panel" class="ascii-panel" aria-label="Drum workstation">
             <div class="panel-body single-frame" id="drum-body"></div>
           </section>
@@ -55,20 +70,6 @@
                     <button type="button" id="load-close" class="transport-btn">[close]</button>
                 </div>
                 <div id="load-list"></div>
-            </div>
-          </section>
-
-          <section id="info-panel" class="ascii-panel" aria-label="Control hub">
-            <div class="panel-body" id="info-body">
-              <div id="intro-field"></div>
-              <div id="transport-body"></div>
-              <div id="voice-field"></div>
-              <div id="menu-field"></div>
-              <div id="pattern-mobile-dock"></div>
-              <div id="visualizer-controls"></div>
-              <div id="visualizer-shell" class="single-frame">
-                <div id="visualizer-body"></div>
-              </div>
             </div>
           </section>
         </div>
