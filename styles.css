@@ -566,11 +566,19 @@ button:focus-visible {
   border-color: var(--c64-green);
 }
 
-.transport-btn.boxed-btn.orange-btn.stop-btn.playing,
-.transport-btn.boxed-btn.orange-btn.stop-btn:active {
+.transport-btn.boxed-btn.orange-btn.stop-btn.playing {
   background: var(--c64-orange);
   color: var(--c64-dark);
   border-color: var(--c64-orange);
+}
+
+/* Only apply :active on non-touch devices */
+@media (hover: hover) and (pointer: fine) {
+  .transport-btn.boxed-btn.orange-btn.stop-btn:active {
+    background: var(--c64-orange);
+    color: var(--c64-dark);
+    border-color: var(--c64-orange);
+  }
 }
 .transport-btn.boxed-btn.orange-btn:active {
   color: var(--c64-green);
@@ -1162,6 +1170,21 @@ button:focus-visible {
   /* min-width: 6ch; */
 }
 
+/* Hide short version on desktop, show full MUTE */
+.mute-short {
+  display: none;
+}
+
+/* Hide short DECAY on desktop */
+.decay-short {
+  display: none;
+}
+
+/* Hide short drum title on desktop */
+.drum-title-short {
+  display: none;
+}
+
 .mute-btn:hover {
   background: var(--c64-purple) !important;
   color: var(--c64-dark) !important;
@@ -1297,10 +1320,17 @@ body.theme-bw #load-panel {
   transform: scale(0.95);
 }
 
-.theme-transport-btn.stop-btn:active,
 .theme-transport-btn.stop-btn.playing {
   color: var(--c64-orange);
   text-shadow: 0 0 8px var(--c64-orange);
+}
+
+/* Only apply :active on non-touch devices */
+@media (hover: hover) and (pointer: fine) {
+  .theme-transport-btn.stop-btn:active {
+    color: var(--c64-orange);
+    text-shadow: 0 0 8px var(--c64-orange);
+  }
 }
 
 .theme-btn-graphic {
@@ -1537,15 +1567,17 @@ body.low-power * {
   #drum-panel,
   #synth-panel {
     width: 100%;
-    padding: 0.35rem 0.5rem 0.25rem;
+    padding: 0.35rem 0.25rem 0.25rem;
     box-sizing: border-box;
     background: transparent;
     min-height: 0;
+    overflow: hidden;
   }
 
   #drum-body {
     gap: 0;
-    padding: 0.25rem;
+    padding: 0.15rem;
+    overflow: hidden;
   }
 
   #synth-panel .panel-body {
@@ -1560,6 +1592,33 @@ body.low-power * {
   .panel-body {
     border: none;
     padding: 0.25rem;
+  }
+
+  /* Mobile: show [M] instead of [MUTE] */
+  .mute-text {
+    display: none;
+  }
+  .mute-short {
+    display: inline;
+  }
+
+  /* Mobile: hide WAVE label, show short D: for DECAY */
+  .wave-label {
+    display: none;
+  }
+  .decay-short {
+    display: inline;
+  }
+  .decay-text {
+    display: none;
+  }
+
+  /* Mobile: show DRUM instead of DRUMMER BOY */
+  .drum-title-full {
+    display: none;
+  }
+  .drum-title-short {
+    display: inline;
   }
 
   /* Mobile-only sequencer adjustments */
@@ -1579,10 +1638,16 @@ body.low-power * {
   }
 
   .drum-grid {
-    grid-auto-columns: minmax(2rem, 1fr);
+    grid-auto-columns: 1fr;
     width: 100%;
     justify-content: stretch;
-    gap: 0.1rem;
+    gap: 0.05rem;
+  }
+
+  /* Hide bar dividers on mobile to save space */
+  .drum-grid > span,
+  .step-grid > span {
+    display: none;
   }
 
   .track-body-row {
@@ -1595,9 +1660,10 @@ body.low-power * {
   }
 
   .step-grid {
-    grid-auto-columns: minmax(2rem, 1fr);
+    grid-auto-columns: 1fr;
     width: 100%;
     justify-content: stretch;
+    gap: 0.05rem;
   }
 
   .track-row {
@@ -1643,16 +1709,16 @@ body.low-power * {
     min-width: 0;
     min-height: 0;
     height: auto;
-    aspect-ratio: 3 / 4;
-    max-width: 40px;
-    max-height: 50px;
-    font-size: 0.6rem;
-    margin: 0.15rem;
+    aspect-ratio: 1 / 1;
+    max-width: none;
+    max-height: 2rem;
+    font-size: 0.55rem;
+    margin: 0;
     padding: 0;
   }
 
   .step-btn span {
-    font-size: 0.6rem;
+    font-size: 0.55rem;
   }
 
   .track-slider {

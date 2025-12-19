@@ -593,7 +593,8 @@ function renderDrumBox() {
     const headerRow = document.createElement("div");
     headerRow.className = "drum-header-row";
     const headerLabel = document.createElement("span");
-    headerLabel.textContent = "DRUMMER BOY";
+    headerLabel.className = "drum-title";
+    headerLabel.innerHTML = '<span class="drum-title-full">DRUMMER BOY</span><span class="drum-title-short">DRUM</span>';
     if (state.activeTrack === "drums") {
       headerLabel.classList.add("active-track-title");
     }
@@ -619,7 +620,7 @@ function renderDrumBox() {
     muteBtn.style.fontSize = "0.7rem";
     
     const isMuted = state.pattern.channelSettings.drums.muted;
-    muteBtn.innerHTML = `<span class="bracket">[</span>MUTE<span class="bracket">]</span>`;
+    muteBtn.innerHTML = `<span class="bracket">[</span><span class="mute-text">MUTE</span><span class="mute-short">M</span><span class="bracket">]</span>`;
     muteBtn.style.color = isMuted ? "var(--c64-green)" : "var(--c64-purple)";
     
     muteBtn.addEventListener("click", (e) => {
@@ -874,7 +875,7 @@ function renderSynthStack() {
     muteBtn.style.fontSize = "0.7rem";
     
     const isMuted = state.pattern.channelSettings[track.key]?.muted;
-    muteBtn.innerHTML = `<span class="bracket">[</span>MUTE<span class="bracket">]</span>`;
+    muteBtn.innerHTML = `<span class="bracket">[</span><span class="mute-text">MUTE</span><span class="mute-short">M</span><span class="bracket">]</span>`;
     muteBtn.style.color = isMuted ? "var(--c64-green)" : "var(--c64-purple)";
     
     muteBtn.addEventListener("click", (e) => {
@@ -899,6 +900,7 @@ function renderSynthStack() {
     
     // Wave Label
     const waveLabel = document.createElement("span");
+    waveLabel.className = "wave-label";
     waveLabel.textContent = "WAVE:";
     waveLabel.style.color = "var(--c64-cyan)";
     waveGroup.append(waveLabel);
@@ -944,11 +946,12 @@ function renderSynthStack() {
     });
 
     const decayGroup = document.createElement("div");
-    decayGroup.className = "track-control-group";
+    decayGroup.className = "track-control-group decay-group";
     decayGroup.style.paddingRight = "1rem";
     
     const decayLabel = document.createElement("span");
-    decayLabel.textContent = "DECAY:";
+    decayLabel.className = "decay-label";
+    decayLabel.innerHTML = '<span class="decay-text">DECAY:</span><span class="decay-short">D:</span>';
     
     const decaySlider = document.createElement("input");
     decaySlider.type = "range";
