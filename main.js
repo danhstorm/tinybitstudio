@@ -1045,15 +1045,15 @@ function renderSynthStack() {
             
             // Event Listeners
             btnNote.addEventListener("click", () => {
-                // Single click just moves the focus marker
-                setFocusedStep(track.key, index, null, "note");
-            });
-            btnNote.addEventListener("dblclick", (e) => {
-                e.preventDefault();
-                // Double click clears the step if active
-                const step = state.pattern.arp[index];
-                if (step && (step.velocity || 0) > 0) {
+                // Check if already focused before updating
+                const wasFocused = state.focusedStep?.channel === track.key && state.focusedStep?.index === index && state.focusedStep?.subtype === "note";
+                
+                if (wasFocused) {
+                    // Already focused - toggle the step
                     toggleSynthStep(track.key, index);
+                } else {
+                    // Not focused - just move focus marker
+                    setFocusedStep(track.key, index, null, "note");
                 }
             });
             btnNote.addEventListener("focus", () => rememberGridFocus(btnNote));
@@ -1102,18 +1102,19 @@ function renderSynthStack() {
           btn.dataset.index = index.toString();
           renderSynthButtonContent(btn, track.key, index);
           
-          // Click handler - single click just moves focus
+          // Click handler - toggle if already focused, otherwise move focus
           btn.addEventListener("click", (event) => {
-              setFocusedStep(track.key, index);
-              // We allow the event to bubble so the wrapper can handle setActiveTrack
-          });
-          // Double click clears the step
-          btn.addEventListener("dblclick", (e) => {
-              e.preventDefault();
-              const step = state.pattern[track.key][index];
-              if (step && (step.velocity || 0) > 0) {
+              // Check if already focused before updating
+              const wasFocused = state.focusedStep?.channel === track.key && state.focusedStep?.index === index;
+              
+              if (wasFocused) {
+                  // Already focused - toggle the step
                   toggleSynthStep(track.key, index);
+              } else {
+                  // Not focused - just move focus marker
+                  setFocusedStep(track.key, index);
               }
+              // We allow the event to bubble so the wrapper can handle setActiveTrack
           });
           btn.addEventListener("focus", () => rememberGridFocus(btn));
           refs.stepButtons.synth[track.key].push(btn);
@@ -4676,11 +4677,19 @@ function handleStepDragStart(event) {
   const target = event.target?.closest?.(".step-btn");
   if (!target) return;
 
+  // For synth buttons, don't focus immediately - let click handler decide
+  // Only drums get immediate focus on pointerdown
+  const isDrum = target.dataset.type === "drum";
+  
   state.stepDrag = {
     pointerId: event.pointerId,
     currentBtn: target,
   };
-  focusStepButton(target);
+  
+  // Only focus drums immediately; synth focus is handled by click
+  if (isDrum) {
+    focusStepButton(target);
+  }
 
   window.addEventListener("pointermove", handleStepDragMove);
   window.addEventListener("pointerup", handleStepDragEnd);
