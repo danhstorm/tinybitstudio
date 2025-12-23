@@ -202,7 +202,7 @@ function buildPanelBorders() {
 
 function renderIntro() {
   if (!refs.introField) return;
-  refs.introField.textContent = "TINY BIT STUDIO";
+  refs.introField.textContent = "TINY BIT STUDIO v1";
   refs.introField.appendChild(createDivider());
 }
 
