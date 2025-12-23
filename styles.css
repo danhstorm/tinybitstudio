@@ -1582,11 +1582,14 @@ body.low-power * {
 
   #synth-panel .panel-body {
     overflow-y: auto;
+    overflow-x: hidden;
     padding-bottom: 6rem;
   }
 
   #synth-body {
     gap: 0.25rem;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   .panel-body {
@@ -1628,6 +1631,9 @@ body.low-power * {
     margin-bottom: 0;
     gap: 0;
     line-height: 1;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .drum-label {
@@ -1640,8 +1646,11 @@ body.low-power * {
   .drum-grid {
     grid-auto-columns: 1fr;
     width: 100%;
+    max-width: 100%;
     justify-content: stretch;
     gap: 0.05rem;
+    overflow: hidden;
+    box-sizing: border-box;
   }
 
   /* Hide bar dividers on mobile to save space */
@@ -1653,6 +1662,8 @@ body.low-power * {
   .track-body-row {
     flex-direction: column;
     width: 100%;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .track-art {
@@ -1662,14 +1673,20 @@ body.low-power * {
   .step-grid {
     grid-auto-columns: 1fr;
     width: 100%;
+    max-width: 100%;
     justify-content: stretch;
     gap: 0.05rem;
+    overflow: hidden;
+    box-sizing: border-box;
   }
 
   .track-row {
     padding-left: 0;
     padding-right: 0;
     box-shadow: none;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .track-box-bass,
@@ -1679,6 +1696,9 @@ body.low-power * {
     border: 1px solid var(--c64-orange);
     padding: 0.2rem 0.25rem;
     margin-bottom: 0.15rem;
+    touch-action: manipulation;
+    overflow: hidden;
+    max-width: 100%;
   }
 
   .top-row-container {
@@ -1715,6 +1735,7 @@ body.low-power * {
     font-size: 0.55rem;
     margin: 0;
     padding: 0;
+    touch-action: manipulation;
   }
 
   .step-btn span {
@@ -1724,6 +1745,7 @@ body.low-power * {
   .track-slider {
     width: 100%;
     max-width: 180px;
+    touch-action: none;
   }
 
   .track-label {
@@ -1784,7 +1806,10 @@ body.low-power * {
     padding-left: 0.5rem;
     padding-right: 0.5rem;
     overflow-x: hidden;
+    overflow-y: auto;
     min-height: 0;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
   }
 }
 

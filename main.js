@@ -765,15 +765,9 @@ function renderDrumBox() {
         btn.dataset.level = level.toString();
         btn.innerHTML = `<span class="btn-level">${LEVEL_SYMBOLS[level]}</span>`;
         btn.addEventListener("click", () => {
-          // Check focus state BEFORE updating it
-          const wasFocused = state.focusedStep?.channel === "drums" && state.focusedStep?.lane === lane.key && state.focusedStep?.index === index;
-          
+          // Drums: immediate toggle/cycle on click for quick pattern entry
           setFocusedStep("drums", index, lane.key);
-          
-          // Only cycle level if already focused
-          if (wasFocused) {
-            cycleDrumLevel(lane.key, index);
-          }
+          cycleDrumLevel(lane.key, index);
         });
         // Remove focus listener to prevent browser focus from interfering with our custom focus
         btn.addEventListener("focus", () => rememberGridFocus(btn));
@@ -1051,9 +1045,14 @@ function renderSynthStack() {
             
             // Event Listeners
             btnNote.addEventListener("click", () => {
-                const wasFocused = state.focusedStep?.channel === track.key && state.focusedStep?.index === index && state.focusedStep?.subtype === "note";
+                // Single click just moves the focus marker
                 setFocusedStep(track.key, index, null, "note");
-                if (wasFocused) {
+            });
+            btnNote.addEventListener("dblclick", (e) => {
+                e.preventDefault();
+                // Double click clears the step if active
+                const step = state.pattern.arp[index];
+                if (step && (step.velocity || 0) > 0) {
                     toggleSynthStep(track.key, index);
                 }
             });
@@ -1103,30 +1102,18 @@ function renderSynthStack() {
           btn.dataset.index = index.toString();
           renderSynthButtonContent(btn, track.key, index);
           
-          // Click handler with "Focus then Toggle" logic
+          // Click handler - single click just moves focus
           btn.addEventListener("click", (event) => {
-              // Check focus state BEFORE updating it
-              const wasFocused = state.focusedStep?.channel === track.key && state.focusedStep?.index === index;
-              
               setFocusedStep(track.key, index);
-              
-              if (wasFocused) {
-                  const pitchModifier = event.metaKey || event.ctrlKey;
-                  const chordModifier = event.altKey;
-
-                  if (pitchModifier) {
-                    event.preventDefault();
-                    const delta = event.shiftKey ? -1 : 1;
-                    shiftStepNote(track.key, index, delta);
-                  } else if (event.shiftKey) {
-                    event.preventDefault();
-                    const delta = chordModifier ? -1 : 1;
-                    adjustSynthDirection(track.key, index, delta);
-                  } else {
-                    toggleSynthStep(track.key, index);
-                  }
-              }
               // We allow the event to bubble so the wrapper can handle setActiveTrack
+          });
+          // Double click clears the step
+          btn.addEventListener("dblclick", (e) => {
+              e.preventDefault();
+              const step = state.pattern[track.key][index];
+              if (step && (step.velocity || 0) > 0) {
+                  toggleSynthStep(track.key, index);
+              }
           });
           btn.addEventListener("focus", () => rememberGridFocus(btn));
           refs.stepButtons.synth[track.key].push(btn);
@@ -1591,6 +1578,8 @@ function renderHelp() {
   const content = [
     "COMMANDS & SHORTCUTS",
     "--------------------",
+    "CLICK        :: Move cursor to step",
+    "DOUBLE-CLICK :: Clear step",
     "ARROWS       :: Move cursor",
     "SPACE        :: Toggle step / Cycle levels",
     "ENTER        :: Play / Stop",
@@ -1625,6 +1614,11 @@ function renderHelp() {
   const expertDiv = document.createElement("div");
   expertDiv.style.marginTop = "1rem";
   expertDiv.style.paddingTop = "0.5rem";
+
+  const expertLabel = document.createElement("span");
+  expertLabel.textContent = "Advanced export feature: ";
+  expertLabel.style.color = "#fff";
+  expertDiv.append(expertLabel);
   
   const jsonBtn = createButton("[json]", "transport-btn", () => {
       const snapshot = {
@@ -1655,6 +1649,15 @@ function renderHelp() {
   
   expertDiv.append(jsonBtn);
   refs.helpBody.append(expertDiv);
+
+  // Credit line
+  const creditDiv = document.createElement("div");
+  creditDiv.style.marginTop = "1.5rem";
+  creditDiv.style.paddingTop = "0.5rem";
+  creditDiv.style.borderTop = "1px solid var(--c64-cyan)";
+  creditDiv.style.color = "var(--c64-cyan)";
+  creditDiv.innerHTML = 'Made by Dan 2025<a href="https://www.danhenriksson.com" target="_blank" rel="noopener" style="color: var(--c64-orange);">www.danhenriksson.com</a>';
+  refs.helpBody.append(creditDiv);
 }
 
 function openSlotOverlay() {
