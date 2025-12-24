@@ -58,7 +58,8 @@ export const state = {
   pattern: initialPatterns[0],
   visualizerMode: 5,
   lowPowerMode: false,
-  stepDrag: null
+  stepDrag: null,
+  heldKeys: new Map() // Track held keyboard keys for piano-style play
 };
 
 export const audio = {
