@@ -285,7 +285,7 @@ function renderTransport() {
     const saveBtn = createButton("[SAVE]", "transport-btn file-btn", (e) => handleSave(e.target));
     saveBtn.style.color = "var(--c64-purple)";
     
-    const loadBtn = createButton("[LOAD]", "transport-btn file-btn", () => openSlotOverlay());
+    const loadBtn = createButton("[LOAD]", "transport-btn file-btn", () => toggleSlotOverlay());
     loadBtn.id = "transport-load-btn";
     loadBtn.style.color = "var(--c64-purple)";
     
@@ -1045,16 +1045,15 @@ function renderSynthStack() {
             
             // Event Listeners
             btnNote.addEventListener("click", () => {
-                // Check if already focused before updating
-                const wasFocused = state.focusedStep?.channel === track.key && state.focusedStep?.index === index && state.focusedStep?.subtype === "note";
+                // Use the pre-computed wasFocused from pointerdown (saved in pointerup)
+                const wasFocused = state.lastStepWasAlreadyFocused ?? false;
+                state.lastStepWasAlreadyFocused = null; // Clear after use
                 
                 if (wasFocused) {
                     // Already focused - toggle the step
                     toggleSynthStep(track.key, index);
-                } else {
-                    // Not focused - just move focus marker
-                    setFocusedStep(track.key, index, null, "note");
                 }
+                // Focus marker is already shown by pointerdown handler
             });
             btnNote.addEventListener("focus", () => rememberGridFocus(btnNote));
             
@@ -1104,17 +1103,15 @@ function renderSynthStack() {
           
           // Click handler - toggle if already focused, otherwise move focus
           btn.addEventListener("click", (event) => {
-              // Check if already focused before updating
-              const wasFocused = state.focusedStep?.channel === track.key && state.focusedStep?.index === index;
+              // Use the pre-computed wasFocused from pointerdown (saved in pointerup)
+              const wasFocused = state.lastStepWasAlreadyFocused ?? false;
+              state.lastStepWasAlreadyFocused = null; // Clear after use
               
               if (wasFocused) {
                   // Already focused - toggle the step
                   toggleSynthStep(track.key, index);
-              } else {
-                  // Not focused - just move focus marker
-                  setFocusedStep(track.key, index);
               }
-              // We allow the event to bubble so the wrapper can handle setActiveTrack
+              // Focus marker is already shown by pointerdown handler
           });
           btn.addEventListener("focus", () => rememberGridFocus(btn));
           refs.stepButtons.synth[track.key].push(btn);
@@ -1577,15 +1574,18 @@ function renderHelp() {
   refs.helpBody.append(header);
 
   const content = [
+    "A four-track music tracker: DRUMS, BASS, LEAD, and CHRD (arpeggiator synth). Click a step to select it, tap again to toggle the note on/off. Preferrably you can use the keyboard to both navigate and play it like a piano. Use the knobs to adjust the selected note's pitch, volume and modulation. Press Play to loop the current pattern, or Play Song to cycle all patterns together.",
+    "",
     "COMMANDS & SHORTCUTS",
     "--------------------",
     "CLICK        :: Move cursor to step",
-    "DOUBLE-CLICK :: Clear step",
-    "ARROWS       :: Move cursor",
-    "SPACE        :: Toggle step / Cycle levels",
+    "CLICK AGAIN  :: Toggle note on/off ",
+    "ARROW KEYS   :: Move cursor",
+    "SPACE        :: Toggle note on / off",
     "ENTER        :: Play / Stop",
     "SHIFT+ENTER  :: Play All",
     "Z            :: Set Pattern End Marker",
+    "BACKSPACE    :: Clear Note",
     "",
     "SYNTH EDITING",
     "-------------",
@@ -1595,13 +1595,13 @@ function renderHelp() {
     "KEYBOARD",
     "--------",
     "A...L, W...P :: Play notes",
-    "[ / ]        :: Change Octave",
+    ", / .        :: Octave down / up",
     "0-9          :: Set volume of selected note",
     "",
     "SAVING & EXPORTING",
     "------------------",
-    "SAVE stores your song locally in the browser so you can load it later to continue working.",
-    "EXPORT saves your song as a .wav file that you can share with friends."
+    "SAVE stores your song locally in the browser cache.",
+    "EXPORT AS .WAV will record and download two loops of all active pattern.",
   ];
 
   const pre = document.createElement("pre");
@@ -1659,6 +1659,17 @@ function renderHelp() {
   creditDiv.style.color = "var(--c64-cyan)";
   creditDiv.innerHTML = 'Made by Dan 2025<a href="https://www.danhenriksson.com" target="_blank" rel="noopener" style="color: var(--c64-orange);">www.danhenriksson.com</a>';
   refs.helpBody.append(creditDiv);
+}
+
+function toggleSlotOverlay() {
+  if (!refs.loadPanel) return;
+  const isHidden = refs.loadPanel.style.display === "none";
+  
+  if (isHidden) {
+    openSlotOverlay();
+  } else {
+    closeSlotOverlay();
+  }
 }
 
 function openSlotOverlay() {
@@ -2177,7 +2188,7 @@ function getCurrentScale() {
 
 function adjustTempo(delta) {
   pushToHistory();
-  state.tempo = clamp(state.tempo + delta, 60, 200);
+  state.tempo = clamp(state.tempo + delta, 60, 250);
   const tempoEl = document.getElementById("tempo-readout");
   if (tempoEl) tempoEl.innerHTML = ` <span class="bracket">[</span>${state.tempo}<span class="bracket">]</span> `;
   if (audio.ready) {
@@ -4005,9 +4016,9 @@ function handleGlobalKeyDown(event) {
     return;
   }
 
-  if (event.key === "[" || event.key === "]") {
+  if (event.key === "," || event.key === ".") {
     event.preventDefault();
-    shiftKeyboardOctave(event.key === "]" ? 1 : -1);
+    shiftKeyboardOctave(event.key === "." ? 1 : -1);
     return;
   }
 
@@ -4677,18 +4688,37 @@ function handleStepDragStart(event) {
   const target = event.target?.closest?.(".step-btn");
   if (!target) return;
 
-  // For synth buttons, don't focus immediately - let click handler decide
-  // Only drums get immediate focus on pointerdown
   const isDrum = target.dataset.type === "drum";
+  
+  // Check if synth button was already focused BEFORE this interaction
+  const channelKey = target.dataset.channel || "drums";
+  const index = Number(target.dataset.index);
+  const lane = target.dataset.lane;
+  const subtype = target.dataset.subtype;
+  
+  let wasAlreadyFocused = false;
+  if (isDrum) {
+    wasAlreadyFocused = state.focusedStep?.channel === "drums" && 
+                        state.focusedStep?.lane === lane && 
+                        state.focusedStep?.index === index;
+  } else {
+    wasAlreadyFocused = state.focusedStep?.channel === channelKey && 
+                        state.focusedStep?.index === index &&
+                        (subtype ? state.focusedStep?.subtype === subtype : true);
+  }
   
   state.stepDrag = {
     pointerId: event.pointerId,
     currentBtn: target,
+    wasAlreadyFocused: wasAlreadyFocused
   };
   
-  // Only focus drums immediately; synth focus is handled by click
+  // Always show focus marker on pointerdown (important for mobile touch)
   if (isDrum) {
     focusStepButton(target);
+  } else {
+    // For synth buttons, just update the visual marker
+    updateFocusState(target);
   }
 
   window.addEventListener("pointermove", handleStepDragMove);
@@ -4710,6 +4740,11 @@ function handleStepDragMove(event) {
 function handleStepDragEnd(event) {
   const drag = state.stepDrag;
   if (!drag || event.pointerId !== drag.pointerId) return;
+  
+  // Save wasAlreadyFocused to state so click handler can access it
+  // (click fires after pointerup)
+  state.lastStepWasAlreadyFocused = drag.wasAlreadyFocused;
+  
   state.stepDrag = null;
   window.removeEventListener("pointermove", handleStepDragMove);
   window.removeEventListener("pointerup", handleStepDragEnd);

@@ -187,7 +187,7 @@ pre, code, kbd, samp {
 #workspace {
   display: grid;
   grid-template-columns: 420px 700px;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas:
     "info drums"
     "info synth";
@@ -224,10 +224,9 @@ pre, code, kbd, samp {
 }
 
 #help-panel {
-  grid-area: drums / drums / synth / synth;
-  grid-row: 1 / -1;
   grid-column: 2;
-  overflow-y: auto;
+  grid-row: 1 / -1;
+  overflow: hidden;
   z-index: 10;
   background: #050506;
   border: 2px solid var(--c64-orange);
@@ -235,26 +234,42 @@ pre, code, kbd, samp {
   display: flex;
   flex-direction: column;
   height: 100%;
+  max-height: 100%;
+}
+
+#help-panel .panel-body {
+  overflow-y: scroll;
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: 100%;
 }
 
 #load-panel {
-  grid-area: drums / drums / synth / synth;
-  grid-row: 1 / -1;
   grid-column: 2;
-  overflow-y: auto;
+  grid-row: 1 / -1;
+  overflow: hidden;
   z-index: 10;
   background: #050506;
   border: 2px solid var(--c64-orange);
   box-shadow: 6px 6px 0px 0px var(--c64-shadow);
   display: flex;
   flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+}
+
+#load-panel .panel-body {
+  overflow-y: scroll;
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: 100%;
 }
 
 #synth-body {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  padding-bottom: 3rem;
+  padding-bottom: 0;
   height: 100%;
   border: none;
   background: transparent;
@@ -405,8 +420,6 @@ pre, code, kbd, samp {
   font-size: 0.85rem;
 }
 
-/* Removed duplicate rule */
-
 .control-row {
   display: flex;
   gap: 0.5rem;
@@ -440,20 +453,11 @@ pre, code, kbd, samp {
   padding: 0;
   outline: none;
   caret-color: var(--c64-green);
-  /* Attempt to make caret thicker if possible, though standard CSS is limited */
-  caret-shape: block; 
-  caret-width: 1ch;
 }
 
 .bare-input:focus {
   background: rgba(141, 255, 123, 0.1);
 }
-
-/* Hide brackets on hover for specific buttons - REMOVED per user request */
-/* .file-btn:hover .bracket,
-.mute-btn:hover .bracket {
-  display: none; 
-} */
 
 .section-divider {
   width: 100%;
@@ -672,7 +676,6 @@ button:focus-visible {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  /* margin-right: 1ch; Removed to align with drums */
 }
 
 .track-header {
@@ -759,13 +762,16 @@ button:focus-visible {
   border-color: var(--c64-orange);
 }
 
-.focused-step {
-  outline: 2px solid var(--c64-green);
-  outline-offset: 2px;
-  z-index: 10;
+.step-btn:focus,
+.step-btn:focus-visible {
+  outline: none !important;
 }
 
-/* Removed conflicting rule to keep marker consistent */
+.focused-step {
+  border: 2px dashed var(--c64-green) !important;
+  z-index: 10;
+  position: relative;
+}
 
 .btn-note {
   font-size: 0.7rem;
@@ -993,6 +999,12 @@ button:focus-visible {
 .overlay-card button {
   color: var(--c64-green);
 }
+
+.overlay-card button:hover {
+  background: var(--c64-green);
+  color: var(--c64-dark);
+}
+
 .top-row-container {
   display: flex;
   gap: 1rem;
@@ -1161,13 +1173,6 @@ button:focus-visible {
   justify-content: center;
   cursor: pointer;
   font-size: 0.9rem;
-}
-
-.mute-btn {
-  /* display: inline-flex; */
-  /* justify-content: center; */
-  /* align-items: center; */
-  /* min-width: 6ch; */
 }
 
 /* Hide short version on desktop, show full MUTE */
@@ -1416,7 +1421,7 @@ body.theme-bw #theme-std-graphic:hover {
   flex-direction: column;
   justify-content: flex-start;
   position: absolute;
-  bottom: -0.5rem;
+  bottom: -0.3rem;
   left: 0;
   right: 0;
   z-index: 100;
@@ -1736,6 +1741,12 @@ body.low-power * {
     margin: 0;
     padding: 0;
     touch-action: manipulation;
+    overflow: visible;
+  }
+
+  .focused-step {
+    z-index: 100;
+    border: 2px dashed var(--c64-green) !important;
   }
 
   .step-btn span {
