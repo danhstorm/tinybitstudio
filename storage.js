@@ -2,8 +2,37 @@ import { drumLanes } from "./constants.js";
 import { isArpChannel, clonePattern, createEmptyDrumPattern, createLinearSynthPattern, createArpPattern } from "./patterns.js";
 import { clamp, velocityToLevel } from "./utils.js";
 
+const CACHE_KEY = "tinybitstudio_autosave_cache";
+
 export function getStorageKey(user, slot = 0) {
   return `tinybitstudio_slot_${user}_${slot}`;
+}
+
+// Autosave cache functions - saves full state for session recovery
+export function saveCacheSnapshot(snapshot) {
+  try {
+    const payload = JSON.stringify(snapshot);
+    localStorage.setItem(CACHE_KEY, payload);
+    return true;
+  } catch (e) {
+    console.warn("Cache save failed:", e);
+    return false;
+  }
+}
+
+export function loadCacheSnapshot() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    console.warn("Cache load failed:", e);
+    return null;
+  }
+}
+
+export function clearCacheSnapshot() {
+  localStorage.removeItem(CACHE_KEY);
 }
 
 export function saveSceneData(user, slot, snapshot) {

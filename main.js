@@ -25,7 +25,7 @@ import {
   clonePattern, isArpChannel
 } from "./patterns.js";
 
-import { loadSceneData } from "./storage.js";
+import { loadSceneData, saveCacheSnapshot, loadCacheSnapshot } from "./storage.js";
 
 // SUPABASE CONFIG (Removed for local server)
 // const SUPABASE_URL = "YOUR_SUPABASE_URL";
@@ -4103,15 +4103,18 @@ function handleGlobalKeyDown(event) {
 }
 
 function handleGlobalKeyUp(event) {
-  const keySpec = KEYBOARD_NOTE_MAP[event.key.toLowerCase()];
-  if (keySpec && state.heldKeys.has(event.key.toLowerCase())) {
-    releaseActiveTrackNote(event.key.toLowerCase());
-  }
+  // Clear held key state to allow re-triggering
+  state.heldKeys.delete(event.key.toLowerCase());
 }
 
-function attackActiveTrackNote(spec, keyId) {
+function playActiveTrackNote(spec, keyId) {
   const channelKey = state.activeTrack;
   if (!channelKey) return;
+  
+  // Mark key as held to prevent repeat triggers
+  if (keyId) {
+    state.heldKeys.set(keyId, true);
+  }
   
   const trackDefaultOctave = TRACK_DEFAULT_OCTAVE[channelKey] ?? 3;
   const baseOctave = clamp(trackDefaultOctave + (spec.octave || 0), 0, NOTE_RANGE_OCTAVES - 1);
@@ -4123,6 +4126,11 @@ function attackActiveTrackNote(spec, keyId) {
     const velocity = velocityToGain(DEFAULT_STEP_VELOCITY);
     
     if (channelKey === "arp") {
+      // Use decay setting for duration
+      const trackDecay = state.pattern.channelSettings?.arp?.decay ?? DEFAULT_ARP_DECAY;
+      const maxDecay = TRACK_MAX_DECAY.arp ?? 2.0;
+      const duration = decayToSeconds(trackDecay, maxDecay);
+      
       // Set high modulation for keyboard preview
       if (audio.arpFilterLfo) {
           audio.arpFilterLfo.min = 200;
@@ -4134,116 +4142,14 @@ function attackActiveTrackNote(spec, keyId) {
           const chordOffsets = [0, 4, 7]; // Major chord
           const arpSpeed = Tone.Time(ARP_DURATION).toSeconds();
           
-          // Create a repeating arp pattern using Tone.Part
-          const arpNotes = [];
-          // Schedule 32 notes (enough for long holds)
-          for (let i = 0; i < 32; i++) {
-              const offset = chordOffsets[i % chordOffsets.length];
-              arpNotes.push({
-                  time: i * arpSpeed,
-                  note: Tone.Frequency(rootMidi + offset, "midi").toNote()
-              });
-          }
-          
-          const part = new Tone.Part((time, value) => {
-              audio.arpSynth.triggerAttackRelease(value.note, arpSpeed * 0.9, time, velocity);
-          }, arpNotes);
-          
-          part.start(time);
-          part.loop = false;
-          
-          // Store reference to stop on release
-          state.heldKeys.set(keyId, { channel: channelKey, part, note });
-      }
-      return;
-    }
-    
-    const voice = audio.synthVoices[channelKey];
-    if (!voice) return;
-    
-    // Set a long sustain for held notes
-    voice.envelope.sustain = 0.8;
-    voice.envelope.release = 0.3;
-    
-    voice.triggerAttack(note, time, velocity);
-    
-    // Store reference for release
-    state.heldKeys.set(keyId, { channel: channelKey, note });
-  });
-}
-
-function releaseActiveTrackNote(keyId) {
-  const held = state.heldKeys.get(keyId);
-  if (!held) return;
-  
-  state.heldKeys.delete(keyId);
-  
-  withAudioReady(() => {
-    if (held.channel === "arp") {
-      // Stop the arp part
-      if (held.part) {
-        held.part.stop();
-        held.part.dispose();
-      }
-      // Release the synth
-      if (audio.arpSynth) {
-        audio.arpSynth.triggerRelease();
-      }
-      return;
-    }
-    
-    const voice = audio.synthVoices[held.channel];
-    if (voice) {
-      voice.triggerRelease();
-    }
-  });
-}
-
-function playActiveTrackNote(spec) {
-  const channelKey = state.activeTrack;
-  if (!channelKey) return;
-  
-  const trackDefaultOctave = TRACK_DEFAULT_OCTAVE[channelKey] ?? 3;
-  const baseOctave = clamp(trackDefaultOctave + (spec.octave || 0), 0, NOTE_RANGE_OCTAVES - 1);
-  const noteIndex = clampNoteIndex(baseOctave * 12 + spec.semitone);
-  const note = noteIndexToLabel(noteIndex);
-  
-  // Just play the note, don't record
-  withAudioReady(() => {
-    const time = Tone.now();
-    const velocity = velocityToGain(DEFAULT_STEP_VELOCITY);
-    
-    if (channelKey === "arp") {
-      // Use current decay setting for Arp - 3x longer for keyboard preview
-      const trackDecay = state.pattern.channelSettings?.arp?.decay ?? DEFAULT_ARP_DECAY;
-      const maxDecay = TRACK_MAX_DECAY.arp ?? 2.0;
-      const duration = decayToSeconds(trackDecay, maxDecay) * 3;
-      
-      // Set high modulation for keyboard preview (more audible filter sweep)
-      if (audio.arpFilterLfo) {
-          audio.arpFilterLfo.min = 200;
-          audio.arpFilterLfo.max = 200 + 6000; // Strong sweep for preview
-      }
-      
-      // Play a quick arpeggio burst to simulate the effect
-      // Chord: Root, +4 (Maj 3rd), +7 (5th)
-      // We use the arpSynth
-      if (audio.arpSynth) {
-          const rootMidi = Tone.Frequency(note).toMidi();
-          const chordOffsets = [0, 4, 7]; // Major chord
-          const arpSpeed = Tone.Time(ARP_DURATION).toSeconds();
-          
-          // Calculate how many notes fit in the duration
-          // Ensure at least one full chord cycle
+          // Calculate how many notes fit in the decay duration
           const totalNotes = Math.max(chordOffsets.length, Math.floor(duration / arpSpeed));
           
           for (let i = 0; i < totalNotes; i++) {
               const offset = chordOffsets[i % chordOffsets.length];
               const noteName = Tone.Frequency(rootMidi + offset, "midi").toNote();
               const noteTime = time + (i * arpSpeed);
-              
-              // Schedule the envelope and trigger
-              audio.arpSynth.triggerAttackRelease(noteName, arpSpeed, noteTime, velocity);
+              audio.arpSynth.triggerAttackRelease(noteName, arpSpeed * 0.9, noteTime, velocity);
           }
       }
       return;
@@ -4260,6 +4166,16 @@ function playActiveTrackNote(spec) {
     voice.triggerAttackRelease(note, duration, time, velocity);
   });
 }
+
+// Keep old function name as alias for compatibility
+function attackActiveTrackNote(spec, keyId) {
+  playActiveTrackNote(spec, keyId);
+}
+
+function releaseActiveTrackNote(keyId) {
+  // No longer needed - notes play with fixed decay duration
+}
+
 function handleStepActivation(button) {
   if (button.dataset.type === "drum") {
     cycleDrumLevel(button.dataset.lane, Number(button.dataset.index));
@@ -5240,6 +5156,19 @@ function notifyStateChange() {
       const input = document.getElementById("track-name-input");
       if (input) input.value = state.trackName;
   }
+  
+  // Auto-save current state to cache for session recovery
+  saveCacheSnapshot({
+    patterns: state.patterns,
+    patternEnable: state.patternEnable,
+    tempo: state.tempo,
+    swing: state.swing,
+    scaleId: state.scaleId,
+    trackName: state.trackName,
+    currentUser: state.currentUser,
+    visualizerMode: state.visualizerMode,
+    editingPatternIdx: state.editingPatternIdx
+  });
 }
 
 // Initialize Theme Controls
@@ -5425,9 +5354,28 @@ document.addEventListener("DOMContentLoaded", () => {
     bindGlobalKeys();
     startVisualizerTicker();
 
-    const hasSavedData = loadUserScene(state.currentUser, { silent: true });
-    if (!hasSavedData) {
-      loadDemoSong(1);
+    // First try to restore from autosave cache (for accidental tab close recovery)
+    const cachedState = loadCacheSnapshot();
+    if (cachedState) {
+      applySnapshot(cachedState);
+      renderTransport();
+      renderDrumBox();
+      renderSynthStack();
+      renderVisualizerControls();
+      if (refs.visualizerBody) {
+        refs.visualizerBody.className = `viz-mode-${state.visualizerMode}`;
+      }
+      const oldControls = document.getElementById("pattern-controls");
+      if (oldControls) {
+        const newControls = renderPatternControls();
+        oldControls.replaceWith(newControls);
+      }
+    } else {
+      // No cache, try user saved data or load demo
+      const hasSavedData = loadUserScene(state.currentUser, { silent: true });
+      if (!hasSavedData) {
+        loadDemoSong(1);
+      }
     }
 
     if (!state.focusedStep) {
